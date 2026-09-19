@@ -5,30 +5,6 @@
  * --------------------------------------------------------------------------
  * Install :  npm i gsap
  * Use     :  import LandingPage from "./landingpage";   <LandingPage />
- *
- * What's new in v2
- *  1. SMOOTH DESKTOP SCROLL
- *     - Trackpad-inertia-safe wheel engine: one gesture = one section. The long
- *       "tail" of a MacBook / precision-touchpad swipe can no longer trigger a
- *       second jump, and a fresh flick after the tail is still detected.
- *     - "Cover" transitions no longer animate clip-path (repaints every frame).
- *       They use a transform-only mask (panel + counter-moving content), so the
- *       whole thing runs on the GPU compositor.
- *     - Parallax depth now also on cover transitions, not just pushes.
- *     - Removed the blend-mode + CSS-variable cursor light on the hero and the
- *       backdrop-filter on the form card (both forced full-screen repaints).
- *     - All images are pre-decoded on idle so nothing pops in mid-transition.
- *  2. CONSTRUCTION / DRAFTING CURSOR (desktop, mouse only)
- *     - Dashed dimension hairlines + crosshair reticle + live X / Y readout.
- *     - Over links it "object-snaps" onto the target with CAD selection
- *       corners and shows an action label (OPEN, VIEW, EXPLORE, NEXT...).
- *     - Click drops a survey-point pulse. Text fields turn it into an I-beam.
- *  3. Section ruler (right edge): a measuring-scale style section indicator.
- *  4. Blueprint grid + "scroll" cue on the hero.
- *
- * Everything else (content config, mobile / reduced-motion fallbacks) is as
- * before. Phones/tablets (<= 900px) still use the normal scrolling page with
- * ScrollTrigger reveals + parallax.
  * -------------------------------------------------------------------------- */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -57,7 +33,6 @@ const SITE = {
   ],
 };
 
-// Placeholder photos (Unsplash). Replace with your own project photography.
 const PH = [
   "1618221195710-dd6b41faaea6",
   "1586023492125-27b2c045efd7",
@@ -218,8 +193,8 @@ const NAV = [
 const IDS = ["home", "about", "portfolio", "services", "journal", "contact"];
 const LABELS = ["Home", "About", "Portfolio", "Services", "Journal", "Contact"];
 
-const N = 6; // number of full-screen sections
-const KIND = ["cover", "push", "cover", "cover", "push", "push"]; // transition i -> i+1
+const N = 6;
+const KIND = ["cover", "push", "cover", "cover", "push", "push"];
 
 /* ========================================================================== */
 /*  ANIMATION BUILDING BLOCKS                                                 */
@@ -258,7 +233,6 @@ const zoom = (tl, t, at = 0, dur = 1.7, stagger = 0.14) =>
   has(t) &&
   tl.fromTo(t, { scale: 1.32 }, { scale: 1, duration: dur, ease: "power3.out", stagger }, at);
 
-/** Portfolio: content of one slide coming in (used on entrance + on next/prev). */
 function slideIn(panel, tl = gsap.timeline()) {
   const q = gsap.utils.selector(panel);
   wipe(tl, q(".pf-img"), 0, 1.1, 0);
@@ -270,11 +244,7 @@ function slideIn(panel, tl = gsap.timeline()) {
   return tl;
 }
 
-/** Entrance timeline for every section. They start paused with the "from"
- *  state already applied, so a section can be placed off-screen, prepared,
- *  and played at exactly the right moment of the transition. */
 const IN = [
-  // 0 — hero
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
@@ -290,7 +260,6 @@ const IN = [
     fade(tl, q(".hero-scroll"), 1.5, 0.9, 12, 0);
     return tl;
   },
-  // 1 — about
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
@@ -303,18 +272,15 @@ const IN = [
     zoom(tl, q(".ab-i2 img"), 1.0, 1.8, 0);
     return tl;
   },
-  // 2 — portfolio
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
     fade(tl, q(".pf-head .lbl"), 0.4, 0.8, 10, 0);
     rise(tl, q(".pf-head .ln-i"), 0.4, 0.1, 1.15);
-    // slide content starts a touch after the heading
     tl.add(slideIn(p, gsap.timeline()), 0.3);
     fade(tl, q(".pf-ctl .rb"), 1.3, 0.7, 12, 0.08);
     return tl;
   },
-  // 3 — services
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
@@ -327,7 +293,6 @@ const IN = [
     fade(tl, q(".svc-note"), 1.4, 0.8, 12, 0);
     return tl;
   },
-  // 4 — journal
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
@@ -338,7 +303,6 @@ const IN = [
     fade(tl, q(".jr-t"), 1.0, 0.7, 12, 0.12);
     return tl;
   },
-  // 5 — contact + footer
   (p) => {
     const q = gsap.utils.selector(p);
     const tl = gsap.timeline({ paused: true });
@@ -369,8 +333,6 @@ const Arrow = () => (
   </svg>
 );
 
-/** A heading line. Put "~" in front of a word to give its first letter the
- *  italic swash treatment, e.g. "~STORIES." */
 function Line({ text, cls = "" }) {
   const words = text.split(" ");
   return (
@@ -408,7 +370,6 @@ function Hd({ as: Tag = "h2", lines, size = "m", className = "" }) {
   );
 }
 
-/** Image with a graceful warm-gradient fallback. */
 function Img({ src, alt = "", className = "", tone = 0, eager = false }) {
   const [bad, setBad] = useState(false);
   return (
@@ -439,11 +400,10 @@ const pad4 = (n) => String(Math.max(0, Math.round(n))).padStart(4, "0");
 
 /* ========================================================================== */
 /*  CONSTRUCTION / DRAFTING CURSOR                                            */
-/*  dashed dimension lines + reticle + live X/Y + CAD "object snap"           */
 /* ========================================================================== */
 
 const CUR_SEL = "a, button, input, textarea, [data-cur]";
-const CUR_BASE = 30; // reticle size (px)
+const CUR_BASE = 30;
 
 function Cursor({ rootRef }) {
   const el = useRef(null);
@@ -614,7 +574,7 @@ function Cursor({ rootRef }) {
 }
 
 /* ========================================================================== */
-/*  SECTION RULE (measuring-scale section indicator, desktop only)            */
+/*  SECTION RULE                                                              */
 /* ========================================================================== */
 
 const Rule = ({ active, nav }) => (
@@ -657,7 +617,6 @@ function Portfolio() {
     });
   }, []);
 
-  // play the "new slide" animation right after React swaps the content
   useIso(() => {
     if (prev.current === i) return;
     prev.current = i;
@@ -678,6 +637,56 @@ function Portfolio() {
       onComplete: () => setI((v) => (v + d + PROJECTS.length) % PROJECTS.length),
     });
   };
+
+  /* ---- finger-swipe support: left/right on the slide changes the project.
+   *  Only reacts to gestures that are clearly more horizontal than vertical,
+   *  so page scrolling on mobile is never hijacked. ---------------------- */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    let sx = 0,
+      sy = 0,
+      tracking = false,
+      lock = null; // "x" | "y" | null
+
+    const onStart = (e) => {
+      if (e.target.closest("input, textarea, button")) return;
+      const t = e.touches[0];
+      sx = t.clientX;
+      sy = t.clientY;
+      tracking = true;
+      lock = null;
+    };
+    const onMove = (e) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (!lock && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      // once we know it's a horizontal swipe, stop the page from scrolling
+      if (lock === "x" && e.cancelable) e.preventDefault();
+    };
+    const onEnd = (e) => {
+      if (!tracking) return;
+      tracking = false;
+      if (lock !== "x") return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      if (Math.abs(dx) > 42) step(dx < 0 ? 1 : -1);
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, []);
 
   return (
     <div className="pf" ref={ref}>
@@ -757,7 +766,6 @@ function ContactForm() {
   const [sent, setSent] = useState(false);
   const onSubmit = (e) => {
     e.preventDefault();
-    // TODO: connect to your backend / email service here.
     setSent(true);
   };
   return (
@@ -797,7 +805,7 @@ function ContactForm() {
 }
 
 /* ========================================================================== */
-/*  NAVBAR (persistent, glassmorphic, sticky across every section)           */
+/*  NAVBAR                                                                    */
 /* ========================================================================== */
 
 const Nav = ({ menu, setMenu, nav, glass }) => (
@@ -869,10 +877,6 @@ export default function LandingPage() {
     }
   };
 
-  /* ---------------------------------------------------------------------- */
-  /*  Pre-decode every image once the browser is idle, so nothing pops in   */
-  /*  in the middle of a transition.                                        */
-  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     const urls = [IMG.hero, ...IMG.about, IMG.servicesBg, ...IMG.services, ...IMG.journal];
     const run = () =>
@@ -892,9 +896,6 @@ export default function LandingPage() {
     };
   }, []);
 
-  /* ---------------------------------------------------------------------- */
-  /*  Animation engine                                                      */
-  /* ---------------------------------------------------------------------- */
   useIso(() => {
     const root = rootRef.current;
     const mm = gsap.matchMedia(root);
@@ -911,13 +912,11 @@ export default function LandingPage() {
         const panels = q("[data-panel]");
         const cleanups = [];
 
-        /* ---- marquee (all modes except reduced motion) ------------------ */
         if (!calm) {
           const track = q(".mq-track")[0];
           if (track) gsap.to(track, { xPercent: -50, duration: 38, ease: "none", repeat: -1 });
         }
 
-        /* ---- reduced motion: plain page, no animation ------------------- */
         if (calm) {
           root.classList.add("st");
           setGlass(true);
@@ -930,10 +929,10 @@ export default function LandingPage() {
           };
         }
 
-        /* ---- phones / tablets / short windows: normal scroll ------------ */
         if (!full) {
           root.classList.add("st");
-          ScrollTrigger.normalizeScroll(true);
+          ScrollTrigger.normalizeScroll({ allowNestedScroll: true });
+          ScrollTrigger.config({ ignoreMobileResize: true });
           const tls = panels.map((p, i) => IN[i](p));
           panels.forEach((p, i) => {
             if (i === 0) {
@@ -947,20 +946,18 @@ export default function LandingPage() {
               onEnter: () => tls[i].play(),
             });
           });
-          // parallax on images while scrolling — smoothed with a little scrub lag
           q(".im img").forEach((img) => {
             const wrap = img.closest(".im");
             gsap.fromTo(
               img,
-              { yPercent: -6 },
+              { yPercent: -4 },
               {
-                yPercent: 6,
+                yPercent: 4,
                 ease: "none",
-                scrollTrigger: { trigger: wrap, start: "top bottom", end: "bottom top", scrub: 0.6 },
+                scrollTrigger: { trigger: wrap, start: "top bottom", end: "bottom top", scrub: true },
               }
             );
           });
-          // glass navbar kicks in once we've scrolled past the hero fold
           const navSt = ScrollTrigger.create({
             trigger: panels[0],
             start: "bottom top+=64",
@@ -979,9 +976,6 @@ export default function LandingPage() {
           };
         }
 
-        /* ==================================================================
-         *  FULL EXPERIENCE (desktop)
-         * ================================================================ */
         root.classList.add("fp");
         panels.forEach((p, k) => p.classList.toggle("is-on", k === 0));
         setGlass(false);
@@ -997,7 +991,6 @@ export default function LandingPage() {
           return S.tl[i];
         };
 
-        /* ---- section change ---------------------------------------------- */
         const go = (to, dir) => {
           if (S.busy || to === S.cur) return;
           S.busy = true;
@@ -1009,14 +1002,14 @@ export default function LandingPage() {
           const B = panels[to];
           const adjacent = dir === 1 ? to === (from + 1) % N : from === (to + 1) % N;
           const kind = adjacent ? KIND[dir === 1 ? from : to] : "cover";
-          const dur = kind === "push" ? 1.3 : 1.4;
-          const ease = kind === "push" ? "power3.inOut" : "power4.inOut";
+          const dur = kind === "push" ? 1.05 : 1.15;
+          const ease = kind === "push" ? "power2.inOut" : "power3.inOut";
           const dA = depthOf(A);
           const dB = depthOf(B);
           const off = (el) => parseFloat(el.dataset.depth || 0) * window.innerHeight * 0.24;
           const soft = (el) => off(el) * 0.6;
 
-          const inTl = build(to); // prepared (from-state applied) while B is still hidden
+          const inTl = build(to);
           B.classList.add("is-on");
 
           const finish = () => {
@@ -1026,7 +1019,7 @@ export default function LandingPage() {
             });
             gsap.set([veilOf(A), veilOf(B)], { clearProps: "opacity" });
             S.cur = to;
-            gsap.delayedCall(0.2, () => {
+            gsap.delayedCall(0.08, () => {
               S.busy = false;
             });
           };
@@ -1036,12 +1029,8 @@ export default function LandingPage() {
             onComplete: finish,
           });
 
-          /* Cover transitions are transform-only: the panel slides (acts as the
-           * mask) while its content moves the opposite way. Same look as the
-           * old clip-path wipe, but no per-frame repaint. */
           if (kind === "cover") {
             if (dir === 1) {
-              // new section wipes up over the current one
               gsap.set(A, { zIndex: 2 });
               gsap.set(B, { zIndex: 3, yPercent: 100 });
               gsap.set(pinOf(B), { yPercent: -90 });
@@ -1052,7 +1041,6 @@ export default function LandingPage() {
                 .to(dA, { y: (i, el) => -soft(el) }, 0)
                 .fromTo(dB, { y: (i, el) => soft(el) }, { y: 0 }, 0);
             } else {
-              // current section wipes away downward, revealing the previous one
               gsap.set(B, { zIndex: 2 });
               gsap.set(A, { zIndex: 3 });
               gsap.set(pinOf(B), { yPercent: -14 });
@@ -1065,7 +1053,6 @@ export default function LandingPage() {
                 .fromTo(dB, { y: (i, el) => -soft(el) }, { y: 0 }, 0);
             }
           } else if (dir === 1) {
-            // push up
             gsap.set(A, { zIndex: 1 });
             gsap.set(B, { zIndex: 2, yPercent: 100 });
             tl.to(A, { yPercent: -100 }, 0)
@@ -1073,7 +1060,6 @@ export default function LandingPage() {
               .to(dA, { y: (i, el) => -off(el) }, 0)
               .fromTo(dB, { y: (i, el) => off(el) }, { y: 0 }, 0);
           } else {
-            // push down
             gsap.set(A, { zIndex: 1 });
             gsap.set(B, { zIndex: 2, yPercent: -100 });
             tl.to(A, { yPercent: 100 }, 0)
@@ -1082,8 +1068,7 @@ export default function LandingPage() {
               .fromTo(dB, { y: (i, el) => -off(el) }, { y: 0 }, 0);
           }
 
-          // content of the new section starts while the transition is still running
-          tl.add(() => inTl.play(0), dur * 0.42);
+          tl.add(() => inTl.play(0), dur * 0.38);
         };
 
         const next = () => go((S.cur + 1) % N, 1);
@@ -1095,17 +1080,14 @@ export default function LandingPage() {
           },
         };
 
-        /* ---- wheel: inertia-safe ---------------------------------------- *
-         * One physical gesture = one section. Trackpads keep firing wheel
-         * events for ~1s after your fingers lift ("inertia tail"). We only
-         * accept a new jump when (a) the wheel went quiet for a moment, or
-         * (b) a clearly stronger new flick arrives. Mouse wheels work too.   */
+        /* ---- wheel: inertia-safe, tuned to trigger sooner for a snappier,
+         * smoother feel while still ignoring trackpad inertia tails. ------- */
         let acc = 0;
         let lastT = 0;
         let prevAbs = 0;
         let fresh = true;
         const onWheel = (e) => {
-          if (e.ctrlKey) return; // pinch-zoom: leave it alone
+          if (e.ctrlKey) return;
           if (e.target && e.target.closest && e.target.closest("textarea")) return;
           e.preventDefault();
 
@@ -1124,7 +1106,7 @@ export default function LandingPage() {
             fresh = true;
             acc = 0;
           } else if (!fresh && !S.busy && a >= 30 && a > prevAbs * 1.6) {
-            fresh = true; // new flick riding on top of the old tail
+            fresh = true;
             acc = 0;
           }
           prevAbs = a;
@@ -1133,7 +1115,7 @@ export default function LandingPage() {
 
           if (Math.sign(dyRaw) !== Math.sign(acc)) acc = 0;
           acc += dyRaw;
-          if (Math.abs(acc) >= 45) {
+          if (Math.abs(acc) >= 32) {
             const d = acc > 0 ? 1 : -1;
             acc = 0;
             fresh = false;
@@ -1143,19 +1125,17 @@ export default function LandingPage() {
         window.addEventListener("wheel", onWheel, { passive: false });
         cleanups.push(() => window.removeEventListener("wheel", onWheel));
 
-        /* ---- touch (touch-screen laptops / tablets in desktop mode) ------ */
         const obs = Observer.create({
           target: window,
           type: "touch",
-          tolerance: 20,
-          dragMinimum: 14,
+          tolerance: 14,
+          dragMinimum: 10,
           preventDefault: true,
           ignore: "textarea",
-          onUp: next, // swipe up
-          onDown: prev, // swipe down
+          onUp: next,
+          onDown: prev,
         });
 
-        /* ---- keyboard ---------------------------------------------------- */
         const onKey = (e) => {
           const t = e.target;
           const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
@@ -1181,7 +1161,6 @@ export default function LandingPage() {
         window.addEventListener("keydown", onKey);
         cleanups.push(() => window.removeEventListener("keydown", onKey));
 
-        /* ---- hero: warm light follows the cursor (transform only) -------- */
         const hero = panels[0];
         const spot = q(".hero-spot")[0];
         const bg = q(".hero-bg")[0];
@@ -1201,7 +1180,6 @@ export default function LandingPage() {
           cleanups.push(() => hero.removeEventListener("pointermove", onMove));
         }
 
-        /* ---- nav intro (plays once, independent of the panel it sits over) */
         const navTl = gsap.timeline({ paused: true });
         has(q(".nav .brand, .nav-l li, .nav-c, .menu-btn")) &&
           navTl.fromTo(
@@ -1211,7 +1189,6 @@ export default function LandingPage() {
             0.15
           );
 
-        /* ---- intro (wait for fonts so the swash letters don't jump) ------ */
         const start = () => {
           build(0).play(0);
           navTl.play(0);
@@ -1225,7 +1202,7 @@ export default function LandingPage() {
           started = true;
           start();
         };
-        build(0); // apply hero's hidden state right away (no flash)
+        build(0);
         gsap.set(q(".nav .brand, .nav-l li, .nav-c, .menu-btn"), { autoAlpha: 0 });
         const fontsReady =
           document.fonts && document.fonts.load
@@ -1250,9 +1227,6 @@ export default function LandingPage() {
     return () => mm.revert();
   }, []);
 
-  /* ---------------------------------------------------------------------- */
-  /*  Markup                                                                */
-  /* ---------------------------------------------------------------------- */
   const repeat = Array.from({ length: 4 });
 
   return (
@@ -1263,7 +1237,6 @@ export default function LandingPage() {
       <Rule active={active} nav={nav} />
 
       <main className="stage">
-        {/* 0 — HERO ---------------------------------------------------------- */}
         <Panel id="home" cls="hero">
           <div className="hero-bg">
             <Img src={IMG.hero} alt="" eager tone={1} />
@@ -1297,7 +1270,6 @@ export default function LandingPage() {
           </div>
         </Panel>
 
-        {/* 1 — ABOUT --------------------------------------------------------- */}
         <Panel id="about" cls="ab">
           <div className="ab-l">
             <p className="lbl ab-lbl">About us</p>
@@ -1323,12 +1295,10 @@ export default function LandingPage() {
           </div>
         </Panel>
 
-        {/* 2 — PORTFOLIO ----------------------------------------------------- */}
         <Panel id="portfolio" cls="pfp">
           <Portfolio />
         </Panel>
 
-        {/* 3 — SERVICES ------------------------------------------------------ */}
         <Panel id="services" cls="svc">
           <div className="svc-bg dp" data-depth="0.22">
             <Img src={IMG.servicesBg} alt="" tone={0} />
@@ -1370,7 +1340,6 @@ export default function LandingPage() {
           <p className="svc-note">Design services crafted for calm, intentional, and meaningful living.</p>
         </Panel>
 
-        {/* 4 — JOURNAL ------------------------------------------------------- */}
         <Panel id="journal" cls="jr">
           <header className="jr-head">
             <p className="lbl">Journal</p>
@@ -1403,7 +1372,6 @@ export default function LandingPage() {
           </div>
         </Panel>
 
-        {/* 5 — CONTACT + FOOTER --------------------------------------------- */}
         <Panel id="contact" cls="ct">
           <div className="ct-main">
             <div className="ct-l">
@@ -1493,7 +1461,8 @@ export default function LandingPage() {
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bilbo+Swash+Caps&family=Cormorant+Garamond:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&display=swap');
 
-/* ---------- tokens ---------- */
+html{scroll-behavior:smooth}
+
 .ai{
   --bg:#14100d; --bg2:#191310; --card:#221a14; --card2:#2b211a;
   --ink:#f2e9dc; --mute:rgba(242,233,220,.58); --line:rgba(242,233,220,.17); --acc:#d2a679;
@@ -1506,6 +1475,8 @@ const CSS = `
   font-size:clamp(12.5px,1.05vw,17px);line-height:1.4;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   position:relative;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:none;
 }
 .ai *,.ai *::before,.ai *::after{box-sizing:border-box}
 .ai h1,.ai h2,.ai h3,.ai h4,.ai p,.ai ul,.ai figure{margin:0;padding:0}
@@ -1515,7 +1486,6 @@ const CSS = `
 .ai img{display:block;max-width:none}
 .ai :focus-visible{outline:1px solid var(--acc);outline-offset:4px}
 
-/* ---------- modes ---------- */
 .ai.fp{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
 .fp .stage{position:absolute;inset:0}
 .fp .panel{position:absolute;inset:0;visibility:hidden;overflow:hidden;backface-visibility:hidden}
@@ -1524,9 +1494,8 @@ const CSS = `
 .panel{position:relative;background:var(--bg);overflow:hidden}
 .pin{position:relative;min-height:100vh;min-height:100svh;width:100%}
 .veil{position:absolute;inset:0;background:#0a0705;opacity:0;pointer-events:none;z-index:60}
-.ai.st{scroll-behavior:smooth}
+.ai.st{scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
 
-/* ---------- type ---------- */
 .hd{font-family:var(--serif);font-weight:600;text-transform:uppercase;line-height:.96;letter-spacing:-.004em}
 .hd-xl{font-size:clamp(40px,7.6vw,150px)}
 .hd-l{font-size:clamp(34px,5.6vw,112px)}
@@ -1543,12 +1512,10 @@ const CSS = `
 .arw{width:1.7em;height:.85em;flex:none;transition:transform .55s cubic-bezier(.2,.7,.2,1)}
 .lnk:hover .arw{transform:translateX(.45em)}
 
-/* ---------- images ---------- */
 .im{position:relative;overflow:hidden;
   background:linear-gradient(155deg,hsl(calc(22 + var(--t,0) * 4) 26% calc(24% + var(--t,0) * 1.6%)),hsl(20 30% 10%))}
 .im img{width:100%;height:100%;object-fit:cover;transform-origin:50% 50%;will-change:transform}
 
-/* ---------- persistent glassmorphic navbar ---------- */
 .nav{position:fixed;left:0;right:0;top:0;height:var(--nav-h);min-height:52px;display:flex;align-items:center;
   padding:0 var(--pad);z-index:200;background:linear-gradient(180deg,rgba(10,7,5,.5),rgba(10,7,5,0));
   -webkit-backdrop-filter:blur(0px);backdrop-filter:blur(0px);
@@ -1574,7 +1541,6 @@ const CSS = `
 .menu-btn .bg.open i:first-child{top:50%;transform:translateY(-50%) rotate(45deg)}
 .menu-btn .bg.open i:last-child{top:50%;transform:translateY(-50%) rotate(-45deg)}
 
-/* ---------- section ruler (desktop full mode only) ---------- */
 .rule{position:fixed;right:.8vw;top:50%;transform:translateY(-50%);z-index:150;display:none;flex-direction:column;align-items:flex-end}
 .fp .rule{display:flex}
 .rl{position:relative;display:flex;flex-direction:column;align-items:flex-end;padding:0 0 0 1.2vw}
@@ -1590,19 +1556,16 @@ const CSS = `
 .rl:hover .rl-n{opacity:1;transform:none}
 .rule:not(:hover) .rl:not(.on) .rl-n{opacity:0}
 
-/* ---------- 0 hero ---------- */
 .hero{background:#0d0907}
 .hero-bg{position:absolute;inset:-3%;z-index:1;will-change:transform}
 .hero-bg .im{position:absolute;inset:0}
 .hero-shade{position:absolute;inset:0;z-index:2;
   background:linear-gradient(180deg,rgba(12,8,6,.62) 0%,rgba(12,8,6,.3) 38%,rgba(12,8,6,.68) 100%),rgba(22,14,9,.3)}
-/* blueprint grid — static, so it costs nothing to paint */
 .hero-grid{position:absolute;inset:0;z-index:3;pointer-events:none;
   background-image:linear-gradient(rgba(242,233,220,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(242,233,220,.05) 1px,transparent 1px);
   background-size:8vw 8vw;background-position:center center;
   -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 22%,#000 70%,transparent 100%);
   mask-image:linear-gradient(180deg,transparent 0,#000 22%,#000 70%,transparent 100%)}
-/* cursor light: one fixed-size layer moved by transform (no blend mode, no var() repaint) */
 .hero-spot{position:absolute;left:0;top:0;width:46vw;height:46vw;margin:-23vw 0 0 -23vw;z-index:4;pointer-events:none;will-change:transform;
   transform:translate(62vw,72vh);
   background:radial-gradient(circle,rgba(255,214,160,.26),rgba(255,214,160,.09) 42%,rgba(255,214,160,0) 68%)}
@@ -1619,7 +1582,6 @@ const CSS = `
 .hero-scroll i::after{content:"";position:absolute;left:0;top:0;width:100%;height:45%;background:var(--acc);animation:scrollcue 2.2s cubic-bezier(.6,0,.3,1) infinite}
 @keyframes scrollcue{0%{transform:translateY(-110%)}70%,100%{transform:translateY(240%)}}
 
-/* ---------- 1 about ---------- */
 .ab{background:var(--bg2)}
 .ab-l{position:absolute;left:var(--pad);top:0;bottom:0;width:46vw}
 .ab-lbl{position:absolute;top:16vh;left:0}
@@ -1629,8 +1591,7 @@ const CSS = `
 .ab-i1{height:65vh}
 .ab-i2{height:32vh}
 
-/* ---------- 2 portfolio ---------- */
-.pf{position:absolute;inset:0}
+.pf{position:absolute;inset:0;touch-action:pan-y}
 .pf-head{position:absolute;top:9vh;left:0;right:0;text-align:center}
 .pf-head .lbl{margin-bottom:.6vh}
 .pf-body{position:absolute;left:var(--pad);right:var(--pad);top:26vh;height:69vh;display:grid;grid-template-columns:45.5% 1fr;gap:2.1vw}
@@ -1656,7 +1617,6 @@ const CSS = `
 .rb-on:hover{background:var(--ink);border-color:var(--ink)}
 .rb:hover .arw{transform:none}
 
-/* ---------- 3 services ---------- */
 .svc{background:#0d0907}
 .svc-bg{position:absolute;inset:-6% 0;z-index:1}
 .svc-bg .im{position:absolute;inset:0}
@@ -1683,7 +1643,6 @@ const CSS = `
 .svc-card:hover{background:var(--card2);transform:translateY(-4px);box-shadow:0 18px 40px rgba(0,0,0,.32)}
 .svc-note{position:absolute;z-index:6;right:var(--pad);bottom:3.4vh;max-width:min(17vw,320px);text-align:right;line-height:1.4}
 
-/* ---------- 4 journal ---------- */
 .jr{background:var(--bg2)}
 .jr-head{position:absolute;top:10vh;left:0;right:0;text-align:center}
 .jr-head .lbl{margin-bottom:.6vh}
@@ -1704,7 +1663,6 @@ const CSS = `
 .jr-a:hover .jr-ov{opacity:1;transform:none}
 .j1 .jr-a:hover .jr-t{opacity:0}
 
-/* ---------- 5 contact + footer ---------- */
 .ct .pin{display:flex;flex-direction:column}
 .ct-main{flex:1;min-height:0;padding:calc(var(--nav-h) + 6vh) var(--pad) 2vh;display:grid;grid-template-columns:1fr 1fr;gap:3vw;align-content:start}
 .ct-l .hd{margin-top:1.2vh}
@@ -1744,18 +1702,15 @@ const CSS = `
 .mq-t .sw{color:#43362b}
 .mq-s{font-size:1.6vw;color:#43362b;margin:0 2.6vw}
 
-/* ---------- construction / drafting cursor ---------- */
 .ai.has-cur,.ai.has-cur *{cursor:none!important}
 .cur{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:0;transition:opacity .35s ease}
 .cur.on{opacity:1}
 .cur > *{position:absolute;left:0;top:0;pointer-events:none;will-change:transform}
-/* dashed dimension lines spanning the viewport */
 .cur-h{width:100vw;height:1px;
   background:repeating-linear-gradient(90deg,rgba(210,166,121,.34) 0 5px,transparent 5px 11px);transition:opacity .35s}
 .cur-v{width:1px;height:100vh;
   background:repeating-linear-gradient(180deg,rgba(210,166,121,.34) 0 5px,transparent 5px 11px);transition:opacity .35s}
 .cur.is-link .cur-h,.cur.is-link .cur-v,.cur.is-text .cur-h,.cur.is-text .cur-v{opacity:0}
-/* reticle */
 .cur-ring{width:0;height:0}
 .cur-box{position:absolute;left:0;top:0;width:var(--w,30px);height:var(--h,30px);
   transform:translate(-50%,-50%) scale(var(--k,1));
@@ -1768,7 +1723,6 @@ const CSS = `
 .cur-box b:nth-of-type(2){right:0;top:0;border-left:0;border-bottom:0}
 .cur-box b:nth-of-type(3){left:0;bottom:0;border-right:0;border-top:0}
 .cur-box b:nth-of-type(4){right:0;bottom:0;border-left:0;border-top:0}
-/* crosshair ticks */
 .cur-box i{position:absolute;background:rgba(242,233,220,.72);transition:opacity .3s}
 .cur-box i:nth-of-type(1){left:50%;top:-9px;width:1px;height:6px}
 .cur-box i:nth-of-type(2){left:50%;bottom:-9px;width:1px;height:6px}
@@ -1778,7 +1732,6 @@ const CSS = `
 .cur.is-link .cur-box b{opacity:1}
 .cur.is-text .cur-box i,.cur.is-text .cur-box b{opacity:0}
 .cur.is-text .cur-box::before{border:0;border-radius:1px;background:var(--acc)}
-/* dot + pulse */
 .cur-dot{width:0;height:0}
 .cur-dot::before{content:"";position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;border-radius:50%;background:var(--acc);
   transition:transform .35s cubic-bezier(.2,.7,.2,1),opacity .3s}
@@ -1786,7 +1739,6 @@ const CSS = `
 .cur.is-text .cur-dot::before{opacity:0}
 .cur-pulse{width:0;height:0}
 .cur-pulse::before{content:"";position:absolute;left:-20px;top:-20px;width:40px;height:40px;border-radius:50%;border:1px solid var(--acc)}
-/* readout */
 .cur-lbl{width:0;height:0}
 .cur-txt{position:absolute;left:24px;top:20px;white-space:nowrap;font-family:var(--mono);font-size:10px;line-height:1.55;
   letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 8px rgba(10,7,5,.8)}
@@ -1795,7 +1747,6 @@ const CSS = `
 .cur-xy{display:block;color:rgba(242,233,220,.62);transition:opacity .3s}
 .cur.is-link .cur-xy,.cur.is-text .cur-xy{opacity:0}
 
-/* ---------- mobile menu ---------- */
 .mnav{position:fixed;inset:0;z-index:190;background:rgba(14,10,8,.86);-webkit-backdrop-filter:blur(22px) saturate(140%);backdrop-filter:blur(22px) saturate(140%);
   display:none;align-items:center;justify-content:center;opacity:0;visibility:hidden;transform:translateY(-8px);
   transition:opacity .45s cubic-bezier(.2,.7,.2,1),visibility .45s,transform .45s cubic-bezier(.2,.7,.2,1)}
@@ -1804,14 +1755,13 @@ const CSS = `
 .mnav a{font-family:var(--serif);font-weight:600;text-transform:uppercase;font-size:11vw;line-height:1.1;transition:color .3s}
 .mnav a:hover{color:var(--acc)}
 
-/* ---------- tablets & phones: normal scrolling layout ---------- */
 @media (max-width:900px){
   .ai{font-size:15px;--pad:5.6vw;--nav-h:60px}
   .hd-xl{font-size:16vw}.hd-l{font-size:12vw}.hd-m{font-size:10vw}
   .lnk{min-width:min(60vw,340px)}
   .mnav{display:flex}
   .menu-btn{display:grid}
-  .nav{background:rgba(20,16,13,.4);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(242,233,220,.08)}
+  .nav{background:rgba(20,16,13,.4);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid rgba(242,233,220,.08)}
   .brand{width:auto;flex:1;font-size:1.2em}
   .nav-l,.nav-c{display:none}
 
@@ -1887,13 +1837,11 @@ const CSS = `
   .mq-t{font-size:14vw}.mq-s{font-size:5vw;margin:0 6vw}
 }
 
-/* ---------- touch: no hover, so show card details ---------- */
 @media (hover:none){
   .sc-more{grid-template-rows:1fr;opacity:1}
   .sc:hover .sc-img{transform:none}
 }
 
-/* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion:reduce){
   .ai *,.ai *::before,.ai *::after{transition-duration:.01ms!important;animation:none!important}
 }
