@@ -1,27 +1,34 @@
 "use client";
 
 /**
- * ASRANI INTERIORS — landing page (dark theme)
+ * ASRANI INTERIORS — landing page (dark theme) · v2
  * --------------------------------------------------------------------------
  * Install :  npm i gsap
  * Use     :  import LandingPage from "./landingpage";   <LandingPage />
  *
- * What's inside
- *  - Full-screen "one scroll = one section" experience (GSAP Observer)
- *      hero -> about (curtain wipe) -> portfolio (push) -> services (wipe)
- *      -> journal (wipe) -> contact + footer (push) -> loops back to hero
- *  - Parallax: layered depth on every push/wipe, cursor-follow light + drift on hero
- *  - Line-by-line heading reveals, image clip-path reveals, portfolio slider
- *  - Services cards with hover expand, journal cards with hover overlay
- *  - Footer marquee
- *  - Sticky glassmorphic navbar, persistent across every section
- *  - Phones/tablets (<= 900px) and "reduced motion" fall back to a normal
- *    scrolling page (ScrollTrigger reveals + parallax / no animation)
+ * What's new in v2
+ *  1. SMOOTH DESKTOP SCROLL
+ *     - Trackpad-inertia-safe wheel engine: one gesture = one section. The long
+ *       "tail" of a MacBook / precision-touchpad swipe can no longer trigger a
+ *       second jump, and a fresh flick after the tail is still detected.
+ *     - "Cover" transitions no longer animate clip-path (repaints every frame).
+ *       They use a transform-only mask (panel + counter-moving content), so the
+ *       whole thing runs on the GPU compositor.
+ *     - Parallax depth now also on cover transitions, not just pushes.
+ *     - Removed the blend-mode + CSS-variable cursor light on the hero and the
+ *       backdrop-filter on the form card (both forced full-screen repaints).
+ *     - All images are pre-decoded on idle so nothing pops in mid-transition.
+ *  2. CONSTRUCTION / DRAFTING CURSOR (desktop, mouse only)
+ *     - Dashed dimension hairlines + crosshair reticle + live X / Y readout.
+ *     - Over links it "object-snaps" onto the target with CAD selection
+ *       corners and shows an action label (OPEN, VIEW, EXPLORE, NEXT...).
+ *     - Click drops a survey-point pulse. Text fields turn it into an I-beam.
+ *  3. Section ruler (right edge): a measuring-scale style section indicator.
+ *  4. Blueprint grid + "scroll" cue on the hero.
  *
- * Content lives in the config blocks right below (SITE, IMG, PROJECTS,
- * SERVICES, JOURNAL). Images are placeholders — put your own photos in IMG
- * and PROJECTS (a broken image falls back to a warm gradient, so layout
- * never breaks).
+ * Everything else (content config, mobile / reduced-motion fallbacks) is as
+ * before. Phones/tablets (<= 900px) still use the normal scrolling page with
+ * ScrollTrigger reveals + parallax.
  * -------------------------------------------------------------------------- */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -208,6 +215,9 @@ const NAV = [
   ["Journal", 4],
 ];
 
+const IDS = ["home", "about", "portfolio", "services", "journal", "contact"];
+const LABELS = ["Home", "About", "Portfolio", "Services", "Journal", "Contact"];
+
 const N = 6; // number of full-screen sections
 const KIND = ["cover", "push", "cover", "cover", "push", "push"]; // transition i -> i+1
 
@@ -277,6 +287,7 @@ const IN = [
       );
     rise(tl, q(".hero-h .ln-i"), 0.25, 0.14, 1.3);
     fade(tl, q(".hero-b p, .hero-b .lnk"), 1.0, 0.95, 22, 0.14);
+    fade(tl, q(".hero-scroll"), 1.5, 0.9, 12, 0);
     return tl;
   },
   // 1 — about
@@ -298,9 +309,9 @@ const IN = [
     const tl = gsap.timeline({ paused: true });
     fade(tl, q(".pf-head .lbl"), 0.4, 0.8, 10, 0);
     rise(tl, q(".pf-head .ln-i"), 0.4, 0.1, 1.15);
-    slideIn(p, tl);
-    fade(tl, q(".pf-ctl .rb"), 1.1, 0.7, 12, 0.08);
-    // slideIn was built on the same timeline at t=0 — push its part to t=0.75
+    // slide content starts a touch after the heading
+    tl.add(slideIn(p, gsap.timeline()), 0.3);
+    fade(tl, q(".pf-ctl .rb"), 1.3, 0.7, 12, 0.08);
     return tl;
   },
   // 3 — services
@@ -335,13 +346,13 @@ const IN = [
     rise(tl, q(".ct .ln-i"), 0.4, 0.12, 1.15);
     fade(tl, q(".ct-p"), 0.85, 0.9, 20, 0);
     fade(tl, q(".fld, .cf-send"), 0.7, 0.8, 16, 0.09);
-    has(q(".fld::after")) || null;
-    tl.fromTo(
-      q(".fld-line"),
-      { scaleX: 0 },
-      { scaleX: 1, duration: 1.1, ease: "power3.inOut", stagger: 0.09 },
-      0.75
-    );
+    has(q(".fld-line")) &&
+      tl.fromTo(
+        q(".fld-line"),
+        { scaleX: 0 },
+        { scaleX: 1, duration: 1.1, ease: "power3.inOut", stagger: 0.09 },
+        0.75
+      );
     fade(tl, q(".ft-logo, .ft-col"), 0.9, 0.8, 16, 0.08);
     fade(tl, q(".mq"), 1.1, 1, 0, 0);
     return tl;
@@ -424,6 +435,207 @@ const Panel = ({ id, cls = "", children }) => (
 );
 
 const pad2 = (n) => String(n).padStart(2, "0");
+const pad4 = (n) => String(Math.max(0, Math.round(n))).padStart(4, "0");
+
+/* ========================================================================== */
+/*  CONSTRUCTION / DRAFTING CURSOR                                            */
+/*  dashed dimension lines + reticle + live X/Y + CAD "object snap"           */
+/* ========================================================================== */
+
+const CUR_SEL = "a, button, input, textarea, [data-cur]";
+const CUR_BASE = 30; // reticle size (px)
+
+function Cursor({ rootRef }) {
+  const el = useRef(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const host = el.current;
+    if (!root || !host) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    root.classList.add("has-cur");
+
+    const q = (s) => host.querySelector(s);
+    const hL = q(".cur-h");
+    const vL = q(".cur-v");
+    const ring = q(".cur-ring");
+    const dot = q(".cur-dot");
+    const lbl = q(".cur-lbl");
+    const pulse = q(".cur-pulse");
+    const xy = q(".cur-xy");
+    const act = q(".cur-act");
+
+    const mid = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    gsap.set([dot, ring, lbl, pulse], { x: mid.x, y: mid.y });
+    gsap.set(hL, { y: mid.y });
+    gsap.set(vL, { x: mid.x });
+    gsap.set(pulse, { autoAlpha: 0 });
+
+    const dx = gsap.quickTo(dot, "x", { duration: 0.07, ease: "power3.out" });
+    const dy = gsap.quickTo(dot, "y", { duration: 0.07, ease: "power3.out" });
+    const rx = gsap.quickTo(ring, "x", { duration: 0.5, ease: "power3.out" });
+    const ry = gsap.quickTo(ring, "y", { duration: 0.5, ease: "power3.out" });
+    const lx = gsap.quickTo(lbl, "x", { duration: 0.6, ease: "power3.out" });
+    const ly = gsap.quickTo(lbl, "y", { duration: 0.6, ease: "power3.out" });
+    const hy = gsap.quickTo(hL, "y", { duration: 0.16, ease: "power2.out" });
+    const vx = gsap.quickTo(vL, "x", { duration: 0.16, ease: "power2.out" });
+
+    let x = mid.x;
+    let y = mid.y;
+    let shown = false;
+    let current = null;
+    let snap = null;
+    let raf = 0;
+
+    const size = (w, h) => {
+      ring.style.setProperty("--w", w + "px");
+      ring.style.setProperty("--h", h + "px");
+    };
+    size(CUR_BASE, CUR_BASE);
+
+    const paintXY = () => {
+      raf = 0;
+      xy.textContent = `X ${pad4(x)}  Y ${pad4(y)}`;
+    };
+
+    const follow = () => {
+      dx(x);
+      dy(y);
+      hy(y);
+      vx(x);
+      lx(x);
+      ly(y);
+      rx(snap ? snap.cx : x);
+      ry(snap ? snap.cy : y);
+      if (!raf) raf = requestAnimationFrame(paintXY);
+    };
+
+    const setTarget = (t) => {
+      const c = t && t.closest ? t.closest(CUR_SEL) : null;
+      if (c === current) return;
+      current = c;
+      snap = null;
+      host.classList.remove("is-link", "is-text", "is-snap");
+      act.textContent = "";
+      if (!c) {
+        size(CUR_BASE, CUR_BASE);
+        return;
+      }
+      if (c.matches("input, textarea")) {
+        host.classList.add("is-text");
+        size(2, 28);
+        return;
+      }
+      host.classList.add("is-link");
+      act.textContent = c.getAttribute("data-cur") || "Open";
+      const r = c.getBoundingClientRect();
+      if (r.width <= 380 && r.height <= 100 && !c.hasAttribute("data-free")) {
+        snap = { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+        host.classList.add("is-snap");
+        size(r.width + 18, r.height + 12);
+      } else {
+        size(64, 64);
+      }
+    };
+
+    const onMove = (e) => {
+      x = e.clientX;
+      y = e.clientY;
+      if (!shown) {
+        shown = true;
+        gsap.set([dot, ring, lbl], { x, y });
+        gsap.set(hL, { y });
+        gsap.set(vL, { x });
+        host.classList.add("on");
+      }
+      setTarget(e.target);
+      follow();
+    };
+
+    const onDown = () => {
+      host.classList.add("is-down");
+      gsap.killTweensOf(pulse);
+      gsap.fromTo(
+        pulse,
+        { x, y, scale: 0.25, autoAlpha: 0.9 },
+        { scale: 2.6, autoAlpha: 0, duration: 0.85, ease: "power3.out" }
+      );
+    };
+    const onUp = () => host.classList.remove("is-down");
+    const onLeave = () => host.classList.remove("on");
+    const onEnter = () => shown && host.classList.add("on");
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    document.documentElement.addEventListener("mouseleave", onLeave);
+    document.documentElement.addEventListener("mouseenter", onEnter);
+
+    return () => {
+      root.classList.remove("has-cur");
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      document.documentElement.removeEventListener("mouseleave", onLeave);
+      document.documentElement.removeEventListener("mouseenter", onEnter);
+      gsap.killTweensOf([dot, ring, lbl, pulse, hL, vL]);
+    };
+  }, [rootRef]);
+
+  return (
+    <div className="cur" ref={el} aria-hidden="true">
+      <i className="cur-h" />
+      <i className="cur-v" />
+      <div className="cur-ring">
+        <div className="cur-box">
+          <b />
+          <b />
+          <b />
+          <b />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+      </div>
+      <div className="cur-pulse" />
+      <div className="cur-dot" />
+      <div className="cur-lbl">
+        <div className="cur-txt">
+          <span className="cur-act" />
+          <span className="cur-xy">X 0000  Y 0000</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ========================================================================== */
+/*  SECTION RULE (measuring-scale section indicator, desktop only)            */
+/* ========================================================================== */
+
+const Rule = ({ active, nav }) => (
+  <div className="rule" role="navigation" aria-label="Sections">
+    {LABELS.map((l, i) => (
+      <a
+        key={l}
+        href={`#${IDS[i]}`}
+        className={`rl ${active === i ? "on" : ""}`}
+        data-cur={l}
+        aria-label={`Go to ${l}`}
+        aria-current={active === i ? "true" : undefined}
+        onClick={nav(i)}
+      >
+        <span className="rl-n">{pad2(i + 1)}</span>
+        <i className="rl-t" />
+        <i className="rl-m" />
+      </a>
+    ))}
+  </div>
+);
 
 /* ========================================================================== */
 /*  PORTFOLIO SLIDER                                                          */
@@ -475,7 +687,7 @@ function Portfolio() {
       </header>
 
       <div className="pf-body">
-        <div className="pf-l dp" data-depth="0.5">
+        <div className="pf-l dp" data-depth="0.5" data-cur="View" data-free="">
           <Img
             key={p.img}
             src={p.img}
@@ -509,12 +721,22 @@ function Portfolio() {
           <div className="pf-foot">
             <p className="pf-brief pf-txt pf-swap">{p.brief}</p>
             <div className="pf-ctl">
-              <button className="rb pf-prev" aria-label="Previous project" onClick={() => step(-1)}>
+              <button
+                className="rb pf-prev"
+                aria-label="Previous project"
+                data-cur="Prev"
+                onClick={() => step(-1)}
+              >
                 <span className="rb-a rb-flip">
                   <Arrow />
                 </span>
               </button>
-              <button className="rb rb-on pf-next" aria-label="Next project" onClick={() => step(1)}>
+              <button
+                className="rb rb-on pf-next"
+                aria-label="Next project"
+                data-cur="Next"
+                onClick={() => step(1)}
+              >
                 <span className="rb-a">
                   <Arrow />
                 </span>
@@ -564,7 +786,7 @@ function ContactForm() {
       <label className="fld fld-ta">
         <textarea name="message" rows={3} placeholder="Message" aria-label="Message" />
       </label>
-      <button type="submit" className="lnk cf-send">
+      <button type="submit" className="lnk cf-send" data-cur="Send">
         Send request <Arrow />
       </button>
       <p className={`cf-ok ${sent ? "show" : ""}`} role="status" aria-live="polite">
@@ -581,22 +803,19 @@ function ContactForm() {
 const Nav = ({ menu, setMenu, nav, glass }) => (
   <>
     <nav className={`nav ${glass ? "nav-glass" : ""}`} aria-label="Primary">
-      <a className="brand" href="#home" onClick={nav(0)}>
+      <a className="brand" href="#home" data-cur="Home" onClick={nav(0)}>
         {SITE.name}
       </a>
       <ul className="nav-l">
         {NAV.map(([label, i]) => (
           <li key={label}>
-            <a
-              href={`#${["home", "about", "portfolio", "services", "journal", "contact"][i]}`}
-              onClick={nav(i)}
-            >
+            <a href={`#${IDS[i]}`} data-cur="Go" onClick={nav(i)}>
               {label}
             </a>
           </li>
         ))}
       </ul>
-      <a className="nav-c" href="#contact" onClick={nav(5)}>
+      <a className="nav-c" href="#contact" data-cur="Talk" onClick={nav(5)}>
         Contact
       </a>
       <button
@@ -616,7 +835,7 @@ const Nav = ({ menu, setMenu, nav, glass }) => (
       <ul>
         {NAV.map(([label, i]) => (
           <li key={label}>
-            <a href={`#${["home", "about", "portfolio", "services", "journal", "contact"][i]}`} onClick={nav(i)}>
+            <a href={`#${IDS[i]}`} onClick={nav(i)}>
               {label}
             </a>
           </li>
@@ -640,6 +859,7 @@ export default function LandingPage() {
   const engine = useRef(null);
   const [menu, setMenu] = useState(false);
   const [glass, setGlass] = useState(false);
+  const [active, setActive] = useState(0);
 
   const nav = (i) => (e) => {
     if (engine.current) {
@@ -648,6 +868,29 @@ export default function LandingPage() {
       engine.current.goTo(i);
     }
   };
+
+  /* ---------------------------------------------------------------------- */
+  /*  Pre-decode every image once the browser is idle, so nothing pops in   */
+  /*  in the middle of a transition.                                        */
+  /* ---------------------------------------------------------------------- */
+  useEffect(() => {
+    const urls = [IMG.hero, ...IMG.about, IMG.servicesBg, ...IMG.services, ...IMG.journal];
+    const run = () =>
+      urls.forEach((u) => {
+        const im = new Image();
+        im.decoding = "async";
+        im.src = u;
+        if (im.decode) im.decode().catch(() => {});
+      });
+    let id;
+    const idle = "requestIdleCallback" in window;
+    if (idle) id = window.requestIdleCallback(run, { timeout: 2500 });
+    else id = window.setTimeout(run, 1200);
+    return () => {
+      if (idle) window.cancelIdleCallback(id);
+      else window.clearTimeout(id);
+    };
+  }, []);
 
   /* ---------------------------------------------------------------------- */
   /*  Animation engine                                                      */
@@ -729,6 +972,7 @@ export default function LandingPage() {
             goTo: (i) => panels[i]?.scrollIntoView({ behavior: "smooth" }),
           };
           return () => {
+            cleanups.forEach((fn) => fn());
             root.classList.remove("st");
             ScrollTrigger.normalizeScroll(false);
             engine.current = null;
@@ -741,6 +985,7 @@ export default function LandingPage() {
         root.classList.add("fp");
         panels.forEach((p, k) => p.classList.toggle("is-on", k === 0));
         setGlass(false);
+        setActive(0);
 
         const S = { cur: 0, busy: true, tl: {} };
         const pinOf = (p) => p.querySelector(".pin");
@@ -757,17 +1002,19 @@ export default function LandingPage() {
           if (S.busy || to === S.cur) return;
           S.busy = true;
           setGlass(to !== 0);
+          setActive(to);
 
           const from = S.cur;
           const A = panels[from];
           const B = panels[to];
           const adjacent = dir === 1 ? to === (from + 1) % N : from === (to + 1) % N;
           const kind = adjacent ? KIND[dir === 1 ? from : to] : "cover";
-          const dur = kind === "push" ? 1.25 : 1.3;
-          const ease = "power3.inOut";
+          const dur = kind === "push" ? 1.3 : 1.4;
+          const ease = kind === "push" ? "power3.inOut" : "power4.inOut";
           const dA = depthOf(A);
           const dB = depthOf(B);
           const off = (el) => parseFloat(el.dataset.depth || 0) * window.innerHeight * 0.24;
+          const soft = (el) => off(el) * 0.6;
 
           const inTl = build(to); // prepared (from-state applied) while B is still hidden
           B.classList.add("is-on");
@@ -779,36 +1026,43 @@ export default function LandingPage() {
             });
             gsap.set([veilOf(A), veilOf(B)], { clearProps: "opacity" });
             S.cur = to;
-            gsap.delayedCall(0.35, () => {
+            gsap.delayedCall(0.2, () => {
               S.busy = false;
             });
           };
 
           const tl = gsap.timeline({
-            defaults: { duration: dur, ease },
+            defaults: { duration: dur, ease, force3D: true },
             onComplete: finish,
           });
 
+          /* Cover transitions are transform-only: the panel slides (acts as the
+           * mask) while its content moves the opposite way. Same look as the
+           * old clip-path wipe, but no per-frame repaint. */
           if (kind === "cover") {
             if (dir === 1) {
               // new section wipes up over the current one
               gsap.set(A, { zIndex: 2 });
-              gsap.set(B, { zIndex: 3, clipPath: "inset(100% 0% 0% 0%)" });
-              gsap.set(pinOf(B), { yPercent: 10 });
-              tl.to(B, { clipPath: "inset(0% 0% 0% 0%)" }, 0)
+              gsap.set(B, { zIndex: 3, yPercent: 100 });
+              gsap.set(pinOf(B), { yPercent: -90 });
+              tl.to(B, { yPercent: 0 }, 0)
                 .to(pinOf(B), { yPercent: 0 }, 0)
                 .to(pinOf(A), { yPercent: -14 }, 0)
-                .to(veilOf(A), { opacity: 0.7 }, 0);
+                .to(veilOf(A), { opacity: 0.7 }, 0)
+                .to(dA, { y: (i, el) => -soft(el) }, 0)
+                .fromTo(dB, { y: (i, el) => soft(el) }, { y: 0 }, 0);
             } else {
               // current section wipes away downward, revealing the previous one
               gsap.set(B, { zIndex: 2 });
-              gsap.set(A, { zIndex: 3, clipPath: "inset(0% 0% 0% 0%)" });
+              gsap.set(A, { zIndex: 3 });
               gsap.set(pinOf(B), { yPercent: -14 });
               gsap.set(veilOf(B), { opacity: 0.7 });
-              tl.to(A, { clipPath: "inset(100% 0% 0% 0%)" }, 0)
-                .to(pinOf(A), { yPercent: 10 }, 0)
+              tl.to(A, { yPercent: 100 }, 0)
+                .to(pinOf(A), { yPercent: -90 }, 0)
                 .to(pinOf(B), { yPercent: 0 }, 0)
-                .to(veilOf(B), { opacity: 0 }, 0);
+                .to(veilOf(B), { opacity: 0 }, 0)
+                .to(dA, { y: (i, el) => soft(el) }, 0)
+                .fromTo(dB, { y: (i, el) => -soft(el) }, { y: 0 }, 0);
             }
           } else if (dir === 1) {
             // push up
@@ -841,19 +1095,67 @@ export default function LandingPage() {
           },
         };
 
-        /* ---- wheel / touch / keyboard (tuned for a smoother, calmer feel) */
+        /* ---- wheel: inertia-safe ---------------------------------------- *
+         * One physical gesture = one section. Trackpads keep firing wheel
+         * events for ~1s after your fingers lift ("inertia tail"). We only
+         * accept a new jump when (a) the wheel went quiet for a moment, or
+         * (b) a clearly stronger new flick arrives. Mouse wheels work too.   */
+        let acc = 0;
+        let lastT = 0;
+        let prevAbs = 0;
+        let fresh = true;
+        const onWheel = (e) => {
+          if (e.ctrlKey) return; // pinch-zoom: leave it alone
+          if (e.target && e.target.closest && e.target.closest("textarea")) return;
+          e.preventDefault();
+
+          const now = performance.now();
+          const gap = now - lastT;
+          lastT = now;
+          const dyRaw =
+            e.deltaMode === 1
+              ? e.deltaY * 32
+              : e.deltaMode === 2
+              ? e.deltaY * window.innerHeight
+              : e.deltaY;
+          const a = Math.abs(dyRaw);
+
+          if (gap > 140) {
+            fresh = true;
+            acc = 0;
+          } else if (!fresh && !S.busy && a >= 30 && a > prevAbs * 1.6) {
+            fresh = true; // new flick riding on top of the old tail
+            acc = 0;
+          }
+          prevAbs = a;
+
+          if (S.busy || !fresh) return;
+
+          if (Math.sign(dyRaw) !== Math.sign(acc)) acc = 0;
+          acc += dyRaw;
+          if (Math.abs(acc) >= 45) {
+            const d = acc > 0 ? 1 : -1;
+            acc = 0;
+            fresh = false;
+            d === 1 ? next() : prev();
+          }
+        };
+        window.addEventListener("wheel", onWheel, { passive: false });
+        cleanups.push(() => window.removeEventListener("wheel", onWheel));
+
+        /* ---- touch (touch-screen laptops / tablets in desktop mode) ------ */
         const obs = Observer.create({
           target: window,
-          type: "wheel,touch",
-          wheelSpeed: -1,
-          tolerance: 9,
-          dragMinimum: 12,
+          type: "touch",
+          tolerance: 20,
+          dragMinimum: 14,
           preventDefault: true,
           ignore: "textarea",
-          onUp: next, // scroll down / swipe up
-          onDown: prev, // scroll up / swipe down
+          onUp: next, // swipe up
+          onDown: prev, // swipe down
         });
 
+        /* ---- keyboard ---------------------------------------------------- */
         const onKey = (e) => {
           const t = e.target;
           const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
@@ -879,32 +1181,23 @@ export default function LandingPage() {
         window.addEventListener("keydown", onKey);
         cleanups.push(() => window.removeEventListener("keydown", onKey));
 
-        /* ---- hero: cursor light + drift ---------------------------------- */
+        /* ---- hero: warm light follows the cursor (transform only) -------- */
         const hero = panels[0];
         const spot = q(".hero-spot")[0];
         const bg = q(".hero-bg")[0];
         if (spot && bg && window.matchMedia("(pointer: fine)").matches) {
-          const pos = { x: window.innerWidth * 0.62, y: window.innerHeight * 0.72 };
-          const paint = () => {
-            spot.style.setProperty("--mx", pos.x + "px");
-            spot.style.setProperty("--my", pos.y + "px");
-          };
-          paint();
+          gsap.set(spot, { x: window.innerWidth * 0.62, y: window.innerHeight * 0.72 });
+          const sx = gsap.quickTo(spot, "x", { duration: 0.9, ease: "power3.out" });
+          const sy = gsap.quickTo(spot, "y", { duration: 0.9, ease: "power3.out" });
           const qx = gsap.quickTo(bg, "x", { duration: 1.6, ease: "power3.out" });
           const qy = gsap.quickTo(bg, "y", { duration: 1.6, ease: "power3.out" });
           const onMove = (e) => {
-            gsap.to(pos, {
-              x: e.clientX,
-              y: e.clientY,
-              duration: 0.9,
-              ease: "power3.out",
-              overwrite: true,
-              onUpdate: paint,
-            });
+            sx(e.clientX);
+            sy(e.clientY);
             qx((0.5 - e.clientX / window.innerWidth) * 34);
             qy((0.5 - e.clientY / window.innerHeight) * 24);
           };
-          hero.addEventListener("pointermove", onMove);
+          hero.addEventListener("pointermove", onMove, { passive: true });
           cleanups.push(() => hero.removeEventListener("pointermove", onMove));
         }
 
@@ -967,6 +1260,7 @@ export default function LandingPage() {
       <style>{CSS}</style>
 
       <Nav menu={menu} setMenu={setMenu} nav={nav} glass={glass} />
+      <Rule active={active} nav={nav} />
 
       <main className="stage">
         {/* 0 — HERO ---------------------------------------------------------- */}
@@ -975,6 +1269,7 @@ export default function LandingPage() {
             <Img src={IMG.hero} alt="" eager tone={1} />
           </div>
           <div className="hero-shade" />
+          <div className="hero-grid" />
           <div className="hero-spot" />
 
           <div className="hero-h-wrap">
@@ -991,9 +1286,14 @@ export default function LandingPage() {
               Asrani Interiors is a design studio creating light-filled, thoughtfully detailed homes
               and workplaces, shaped around how you live.
             </p>
-            <a className="lnk" href="#contact" onClick={nav(5)}>
+            <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(5)}>
               Get in touch <Arrow />
             </a>
+          </div>
+
+          <div className="hero-scroll" aria-hidden="true">
+            <span>Scroll</span>
+            <i />
           </div>
         </Panel>
 
@@ -1008,7 +1308,7 @@ export default function LandingPage() {
                 project begins with how you live and ends with the details you notice every day:
                 light, texture, proportion and purpose.
               </p>
-              <a className="lnk" href="#portfolio" onClick={nav(2)}>
+              <a className="lnk" href="#portfolio" data-cur="Work" onClick={nav(2)}>
                 Learn more <Arrow />
               </a>
             </div>
@@ -1041,14 +1341,14 @@ export default function LandingPage() {
               We offer more than design. We shape experiences through clarity, texture, intention,
               and a thoughtful presence on site.
             </p>
-            <a className="lnk" href="#contact" onClick={nav(5)}>
+            <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(5)}>
               Get in touch <Arrow />
             </a>
           </div>
           <ul className="svc-grid">
             {SERVICES.map((s, k) => (
               <li className={`svc-card c${k + 1}`} key={s.title}>
-                <a className="sc" href="#contact" onClick={nav(5)}>
+                <a className="sc" href="#contact" data-cur="Explore" data-free="" onClick={nav(5)}>
                   <span className="sc-no">{pad2(k + 1)}</span>
                   <Img className="sc-img" src={IMG.services[k]} alt="" tone={k + 1} />
                   <div className="sc-bot">
@@ -1079,7 +1379,13 @@ export default function LandingPage() {
           <div className="jr-grid">
             {JOURNAL.map((j, k) => (
               <article className={`jr-it j${k + 1}`} key={j.title}>
-                <a className="jr-a" href="#journal" onClick={(e) => e.preventDefault()}>
+                <a
+                  className="jr-a"
+                  href="#journal"
+                  data-cur="Read"
+                  data-free=""
+                  onClick={(e) => e.preventDefault()}
+                >
                   <div className="jr-pic">
                     <Img src={IMG.journal[k]} alt="" tone={k + 3} />
                     <div className="jr-ov">
@@ -1115,7 +1421,7 @@ export default function LandingPage() {
 
           <footer className="ft">
             <div className="ft-top">
-              <a className="ft-logo" href="#home" onClick={nav(0)}>
+              <a className="ft-logo" href="#home" data-cur="Top" onClick={nav(0)}>
                 {SITE.name}
               </a>
               <div className="ft-cols">
@@ -1124,10 +1430,7 @@ export default function LandingPage() {
                   <ul>
                     {NAV.map(([label, i]) => (
                       <li key={label}>
-                        <a
-                          href={`#${["home", "about", "portfolio", "services", "journal", "contact"][i]}`}
-                          onClick={nav(i)}
-                        >
+                        <a href={`#${IDS[i]}`} onClick={nav(i)}>
                           {label}
                         </a>
                       </li>
@@ -1177,6 +1480,8 @@ export default function LandingPage() {
           </footer>
         </Panel>
       </main>
+
+      <Cursor rootRef={rootRef} />
     </div>
   );
 }
@@ -1196,6 +1501,7 @@ const CSS = `
   --serif:"Cormorant Garamond","Cormorant",Georgia,"Times New Roman",serif;
   --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --swash:"Bilbo Swash Caps","Cormorant Garamond",cursive;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
   color:var(--ink);background:var(--bg);font-family:var(--sans);
   font-size:clamp(12.5px,1.05vw,17px);line-height:1.4;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
@@ -1212,9 +1518,9 @@ const CSS = `
 /* ---------- modes ---------- */
 .ai.fp{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
 .fp .stage{position:absolute;inset:0}
-.fp .panel{position:absolute;inset:0;visibility:hidden;overflow:hidden}
-.fp .panel.is-on{visibility:visible}
-.fp .pin{position:absolute;inset:0;min-height:0}
+.fp .panel{position:absolute;inset:0;visibility:hidden;overflow:hidden;backface-visibility:hidden}
+.fp .panel.is-on{visibility:visible;will-change:transform}
+.fp .pin{position:absolute;inset:0;min-height:0;will-change:transform}
 .panel{position:relative;background:var(--bg);overflow:hidden}
 .pin{position:relative;min-height:100vh;min-height:100svh;width:100%}
 .veil{position:absolute;inset:0;background:#0a0705;opacity:0;pointer-events:none;z-index:60}
@@ -1240,7 +1546,7 @@ const CSS = `
 /* ---------- images ---------- */
 .im{position:relative;overflow:hidden;
   background:linear-gradient(155deg,hsl(calc(22 + var(--t,0) * 4) 26% calc(24% + var(--t,0) * 1.6%)),hsl(20 30% 10%))}
-.im img{width:100%;height:100%;object-fit:cover;transform-origin:50% 50%}
+.im img{width:100%;height:100%;object-fit:cover;transform-origin:50% 50%;will-change:transform}
 
 /* ---------- persistent glassmorphic navbar ---------- */
 .nav{position:fixed;left:0;right:0;top:0;height:var(--nav-h);min-height:52px;display:flex;align-items:center;
@@ -1268,20 +1574,50 @@ const CSS = `
 .menu-btn .bg.open i:first-child{top:50%;transform:translateY(-50%) rotate(45deg)}
 .menu-btn .bg.open i:last-child{top:50%;transform:translateY(-50%) rotate(-45deg)}
 
+/* ---------- section ruler (desktop full mode only) ---------- */
+.rule{position:fixed;right:.8vw;top:50%;transform:translateY(-50%);z-index:150;display:none;flex-direction:column;align-items:flex-end}
+.fp .rule{display:flex}
+.rl{position:relative;display:flex;flex-direction:column;align-items:flex-end;padding:0 0 0 1.2vw}
+.rl-t{display:block;height:1px;width:12px;background:rgba(242,233,220,.5);transition:width .5s cubic-bezier(.2,.7,.2,1),background .4s}
+.rl-m{display:block;width:6px;height:34px;margin-top:0;
+  background:repeating-linear-gradient(180deg,rgba(242,233,220,.3) 0 1px,transparent 1px 8.5px)}
+.rl:last-child .rl-m{display:none}
+.rl-n{position:absolute;right:calc(100% - .2vw);top:-.62em;font-family:var(--mono);font-size:.72em;letter-spacing:.08em;color:var(--acc);
+  opacity:0;transform:translateX(6px);transition:opacity .35s,transform .5s cubic-bezier(.2,.7,.2,1);pointer-events:none;white-space:nowrap}
+.rl.on .rl-t{width:28px;background:var(--acc)}
+.rl.on .rl-n{opacity:1;transform:none}
+.rl:hover .rl-t{width:22px;background:var(--ink)}
+.rl:hover .rl-n{opacity:1;transform:none}
+.rule:not(:hover) .rl:not(.on) .rl-n{opacity:0}
+
 /* ---------- 0 hero ---------- */
 .hero{background:#0d0907}
-.hero-bg{position:absolute;inset:-3%;z-index:1}
+.hero-bg{position:absolute;inset:-3%;z-index:1;will-change:transform}
 .hero-bg .im{position:absolute;inset:0}
 .hero-shade{position:absolute;inset:0;z-index:2;
   background:linear-gradient(180deg,rgba(12,8,6,.62) 0%,rgba(12,8,6,.3) 38%,rgba(12,8,6,.68) 100%),rgba(22,14,9,.3)}
-.hero-spot{position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:screen;
-  background:radial-gradient(circle 15vw at var(--mx,62%) var(--my,72%),rgba(255,214,160,.30),rgba(255,214,160,.10) 46%,rgba(255,214,160,0) 72%)}
+/* blueprint grid — static, so it costs nothing to paint */
+.hero-grid{position:absolute;inset:0;z-index:3;pointer-events:none;
+  background-image:linear-gradient(rgba(242,233,220,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(242,233,220,.05) 1px,transparent 1px);
+  background-size:8vw 8vw;background-position:center center;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 22%,#000 70%,transparent 100%);
+  mask-image:linear-gradient(180deg,transparent 0,#000 22%,#000 70%,transparent 100%)}
+/* cursor light: one fixed-size layer moved by transform (no blend mode, no var() repaint) */
+.hero-spot{position:absolute;left:0;top:0;width:46vw;height:46vw;margin:-23vw 0 0 -23vw;z-index:4;pointer-events:none;will-change:transform;
+  transform:translate(62vw,72vh);
+  background:radial-gradient(circle,rgba(255,214,160,.26),rgba(255,214,160,.09) 42%,rgba(255,214,160,0) 68%)}
 .hero-h-wrap{position:absolute;z-index:5;left:11vw;right:var(--pad);top:26vh;max-width:82vw}
 .hero-h .l2{margin-left:clamp(0px,32vw,600px)}
 .hero-h .l3{margin-left:clamp(0px,37vw,690px)}
 .hero-b{position:absolute;z-index:5;left:50vw;top:69.5vh;width:min(22vw,420px)}
 .hero-b p{line-height:1.4;font-size:1.02em}
 .hero-b .lnk{margin-top:6.4vh;min-width:min(17vw,300px)}
+.hero-scroll{position:absolute;z-index:5;left:var(--pad);bottom:4.4vh;display:none;align-items:center;gap:1.1em;color:var(--mute);
+  text-transform:uppercase;font-size:.85em;letter-spacing:.06em}
+.fp .hero-scroll{display:flex}
+.hero-scroll i{display:block;width:1px;height:5.4vh;background:rgba(242,233,220,.22);position:relative;overflow:hidden}
+.hero-scroll i::after{content:"";position:absolute;left:0;top:0;width:100%;height:45%;background:var(--acc);animation:scrollcue 2.2s cubic-bezier(.6,0,.3,1) infinite}
+@keyframes scrollcue{0%{transform:translateY(-110%)}70%,100%{transform:translateY(240%)}}
 
 /* ---------- 1 about ---------- */
 .ab{background:var(--bg2)}
@@ -1373,8 +1709,7 @@ const CSS = `
 .ct-main{flex:1;min-height:0;padding:calc(var(--nav-h) + 6vh) var(--pad) 2vh;display:grid;grid-template-columns:1fr 1fr;gap:3vw;align-content:start}
 .ct-l .hd{margin-top:1.2vh}
 .ct-p{margin-top:4.2vh;max-width:min(24vw,460px);color:var(--mute);line-height:1.5}
-.cf-card{background:rgba(242,233,220,.035);border:1px solid rgba(242,233,220,.1);border-radius:14px;padding:2.6vw;
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.cf-card{background:rgba(242,233,220,.045);border:1px solid rgba(242,233,220,.1);border-radius:14px;padding:2.6vw}
 .cf{position:relative}
 .fld{display:block;position:relative}
 .fld input,.fld textarea{width:100%;display:block;background:transparent;border:0;color:var(--ink);font:inherit;padding:.85em .15em;outline:none;transition:color .3s}
@@ -1409,6 +1744,57 @@ const CSS = `
 .mq-t .sw{color:#43362b}
 .mq-s{font-size:1.6vw;color:#43362b;margin:0 2.6vw}
 
+/* ---------- construction / drafting cursor ---------- */
+.ai.has-cur,.ai.has-cur *{cursor:none!important}
+.cur{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:0;transition:opacity .35s ease}
+.cur.on{opacity:1}
+.cur > *{position:absolute;left:0;top:0;pointer-events:none;will-change:transform}
+/* dashed dimension lines spanning the viewport */
+.cur-h{width:100vw;height:1px;
+  background:repeating-linear-gradient(90deg,rgba(210,166,121,.34) 0 5px,transparent 5px 11px);transition:opacity .35s}
+.cur-v{width:1px;height:100vh;
+  background:repeating-linear-gradient(180deg,rgba(210,166,121,.34) 0 5px,transparent 5px 11px);transition:opacity .35s}
+.cur.is-link .cur-h,.cur.is-link .cur-v,.cur.is-text .cur-h,.cur.is-text .cur-v{opacity:0}
+/* reticle */
+.cur-ring{width:0;height:0}
+.cur-box{position:absolute;left:0;top:0;width:var(--w,30px);height:var(--h,30px);
+  transform:translate(-50%,-50%) scale(var(--k,1));
+  transition:width .5s cubic-bezier(.2,.7,.2,1),height .5s cubic-bezier(.2,.7,.2,1),transform .35s cubic-bezier(.2,.7,.2,1)}
+.cur.is-down .cur-box{--k:.82}
+.cur-box::before{content:"";position:absolute;inset:0;border:1px solid rgba(242,233,220,.72);border-radius:50%;
+  transition:opacity .35s,border-radius .5s,background .3s}
+.cur-box b{position:absolute;width:10px;height:10px;border:1px solid var(--acc);opacity:0;transition:opacity .35s}
+.cur-box b:nth-of-type(1){left:0;top:0;border-right:0;border-bottom:0}
+.cur-box b:nth-of-type(2){right:0;top:0;border-left:0;border-bottom:0}
+.cur-box b:nth-of-type(3){left:0;bottom:0;border-right:0;border-top:0}
+.cur-box b:nth-of-type(4){right:0;bottom:0;border-left:0;border-top:0}
+/* crosshair ticks */
+.cur-box i{position:absolute;background:rgba(242,233,220,.72);transition:opacity .3s}
+.cur-box i:nth-of-type(1){left:50%;top:-9px;width:1px;height:6px}
+.cur-box i:nth-of-type(2){left:50%;bottom:-9px;width:1px;height:6px}
+.cur-box i:nth-of-type(3){top:50%;left:-9px;width:6px;height:1px}
+.cur-box i:nth-of-type(4){top:50%;right:-9px;width:6px;height:1px}
+.cur.is-link .cur-box::before,.cur.is-link .cur-box i{opacity:0}
+.cur.is-link .cur-box b{opacity:1}
+.cur.is-text .cur-box i,.cur.is-text .cur-box b{opacity:0}
+.cur.is-text .cur-box::before{border:0;border-radius:1px;background:var(--acc)}
+/* dot + pulse */
+.cur-dot{width:0;height:0}
+.cur-dot::before{content:"";position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;border-radius:50%;background:var(--acc);
+  transition:transform .35s cubic-bezier(.2,.7,.2,1),opacity .3s}
+.cur.is-link .cur-dot::before{transform:scale(1.5)}
+.cur.is-text .cur-dot::before{opacity:0}
+.cur-pulse{width:0;height:0}
+.cur-pulse::before{content:"";position:absolute;left:-20px;top:-20px;width:40px;height:40px;border-radius:50%;border:1px solid var(--acc)}
+/* readout */
+.cur-lbl{width:0;height:0}
+.cur-txt{position:absolute;left:24px;top:20px;white-space:nowrap;font-family:var(--mono);font-size:10px;line-height:1.55;
+  letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 8px rgba(10,7,5,.8)}
+.cur-act{display:block;color:var(--acc);font-weight:600}
+.cur-act:empty{display:none}
+.cur-xy{display:block;color:rgba(242,233,220,.62);transition:opacity .3s}
+.cur.is-link .cur-xy,.cur.is-text .cur-xy{opacity:0}
+
 /* ---------- mobile menu ---------- */
 .mnav{position:fixed;inset:0;z-index:190;background:rgba(14,10,8,.86);-webkit-backdrop-filter:blur(22px) saturate(140%);backdrop-filter:blur(22px) saturate(140%);
   display:none;align-items:center;justify-content:center;opacity:0;visibility:hidden;transform:translateY(-8px);
@@ -1430,6 +1816,8 @@ const CSS = `
   .nav-l,.nav-c{display:none}
 
   .hero .pin{min-height:100svh}
+  .hero-spot{display:none}
+  .hero-grid{background-size:16vw 16vw}
   .hero-h-wrap{left:var(--pad);right:var(--pad);top:22svh;max-width:none}
   .hero-h .l2{margin-left:clamp(0px,9vw,80px)}
   .hero-h .l3{margin-left:clamp(0px,18vw,150px)}
@@ -1507,6 +1895,6 @@ const CSS = `
 
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion:reduce){
-  .ai *,.ai *::before,.ai *::after{transition-duration:.01ms!important}
+  .ai *,.ai *::before,.ai *::after{transition-duration:.01ms!important;animation:none!important}
 }
 `;
