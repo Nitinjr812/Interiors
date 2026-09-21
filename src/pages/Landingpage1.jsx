@@ -1,18 +1,13 @@
 "use client";
 
-/**
- * ASRANI INTERIORS — landing page (dark theme) · v2
- * --------------------------------------------------------------------------
- * Install :  npm i gsap
- * Use     :  import LandingPage from "./landingpage";   <LandingPage />
- * -------------------------------------------------------------------------- */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
+import { useNavigate } from "react-router-dom";
 import { Observer } from "gsap/Observer";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-gsap.registerPlugin(Observer, ScrollTrigger);
+gsap.registerPlugin(Observer, ScrollTriggern);
 
 const useIso = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -186,6 +181,7 @@ const JOURNAL = [
 const NAV = [
   ["About us", 1],
   ["Portfolio", 2],
+  ["Gallery", "/gallery"],
   ["Services", 3],
   ["Journal", 4],
 ];
@@ -808,7 +804,7 @@ function ContactForm() {
 /*  NAVBAR                                                                    */
 /* ========================================================================== */
 
-const Nav = ({ menu, setMenu, nav, glass }) => (
+const Nav = ({ menu, setMenu, nav, glass, toGallery }) => (
   <>
     <nav className={`nav ${glass ? "nav-glass" : ""}`} aria-label="Primary">
       <a className="brand" href="#home" data-cur="Home" onClick={nav(0)}>
@@ -817,9 +813,15 @@ const Nav = ({ menu, setMenu, nav, glass }) => (
       <ul className="nav-l">
         {NAV.map(([label, i]) => (
           <li key={label}>
-            <a href={`#${IDS[i]}`} data-cur="Go" onClick={nav(i)}>
-              {label}
-            </a>
+            {typeof i === "string" ? (
+              <a href={i} data-cur="Open" onClick={toGallery}>
+                {label}
+              </a>
+            ) : (
+              <a href={`#${IDS[i]}`} data-cur="Go" onClick={nav(i)}>
+                {label}
+              </a>
+            )}
           </li>
         ))}
       </ul>
@@ -843,9 +845,15 @@ const Nav = ({ menu, setMenu, nav, glass }) => (
       <ul>
         {NAV.map(([label, i]) => (
           <li key={label}>
-            <a href={`#${IDS[i]}`} onClick={nav(i)}>
-              {label}
-            </a>
+            {typeof i === "string" ? (
+              <a href={i} onClick={toGallery}>
+                {label}
+              </a>
+            ) : (
+              <a href={`#${IDS[i]}`} onClick={nav(i)}>
+                {label}
+              </a>
+            )}
           </li>
         ))}
         <li>
@@ -869,6 +877,15 @@ export default function LandingPage() {
   const [glass, setGlass] = useState(false);
   const [active, setActive] = useState(0);
 
+
+
+  const navigate = useNavigate();
+  const toGallery = (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    setMenu(false);
+    navigate("/gallery");
+  };
   const nav = (i) => (e) => {
     if (engine.current) {
       e.preventDefault();
@@ -884,7 +901,7 @@ export default function LandingPage() {
         const im = new Image();
         im.decoding = "async";
         im.src = u;
-        if (im.decode) im.decode().catch(() => {});
+        if (im.decode) im.decode().catch(() => { });
       });
     let id;
     const idle = "requestIdleCallback" in window;
@@ -1098,8 +1115,8 @@ export default function LandingPage() {
             e.deltaMode === 1
               ? e.deltaY * 32
               : e.deltaMode === 2
-              ? e.deltaY * window.innerHeight
-              : e.deltaY;
+                ? e.deltaY * window.innerHeight
+                : e.deltaY;
           const a = Math.abs(dyRaw);
 
           if (gap > 140) {
@@ -1207,9 +1224,9 @@ export default function LandingPage() {
         const fontsReady =
           document.fonts && document.fonts.load
             ? Promise.all([
-                document.fonts.load('600 1em "Cormorant Garamond"'),
-                document.fonts.load('1em "Bilbo Swash Caps"'),
-              ])
+              document.fonts.load('600 1em "Cormorant Garamond"'),
+              document.fonts.load('1em "Bilbo Swash Caps"'),
+            ])
             : Promise.resolve();
         Promise.race([fontsReady, new Promise((r) => setTimeout(r, 1600))]).then(kick);
 
@@ -1233,7 +1250,7 @@ export default function LandingPage() {
     <div className="ai" ref={rootRef}>
       <style>{CSS}</style>
 
-      <Nav menu={menu} setMenu={setMenu} nav={nav} glass={glass} />
+      <Nav menu={menu} setMenu={setMenu} nav={nav} glass={glass} toGallery={toGallery} />
       <Rule active={active} nav={nav} />
 
       <main className="stage">
