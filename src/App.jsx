@@ -11,7 +11,7 @@ function App() {
       <Routes>
         {/* <Route path="/" element={<LandingPage />} /> */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/gallery" element={< />} />
+        <Route path="/gallery" element={<GalleryPage/>} />
       </Routes>
     </BrowserRouter>
   )
