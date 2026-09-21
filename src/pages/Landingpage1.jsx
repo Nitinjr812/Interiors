@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { Observer } from "gsap/Observer";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-gsap.registerPlugin(Observer, ScrollTriggern);
+gsap.registerPlugin(Observer, ScrollTrigger);
 
 const useIso = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
