@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import Navbar from "./components/Navbar"
 // import LandingPage from "./pages/Landing"
 import LandingPage from "./pages/Landingpage1"
+import GalleryPage from "./pages/Gallery"
 
 function App() {
   return (
@@ -10,6 +11,7 @@ function App() {
       <Routes>
         {/* <Route path="/" element={<LandingPage />} /> */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/gallery" element={< />} />
       </Routes>
     </BrowserRouter>
   )
