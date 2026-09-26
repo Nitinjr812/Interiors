@@ -178,6 +178,29 @@ const JOURNAL = [
   },
 ];
 
+/* The studio's three-stage journey, shown on the hero as a quick orientation
+ * for a first-time visitor: build it, design the interior, furnish it. */
+const FLOW = [
+  {
+    step: "01",
+    title: "Architecture",
+    text: "Planning and construction from the ground up — a home built entirely around how you live.",
+  },
+  {
+    step: "02",
+    title: "Interior Design",
+    text: "Once the structure stands, we shape layouts, materials and light into a finished interior.",
+  },
+  {
+    step: "03",
+    title: "Interior Products",
+    text: "Furniture, décor and finishing pieces, sourced and styled to complete the space.",
+  },
+];
+
+/* Which section each hero flow-card jumps to when clicked. */
+const FLOW_TARGET = [1, 3, 2]; // Architecture -> About, Interior Design -> Services, Interior Products -> Portfolio
+
 const NAV = [
   ["About us", 1],
   ["Portfolio", 2],
@@ -253,7 +276,8 @@ const IN = [
       );
     rise(tl, q(".hero-h .ln-i"), 0.25, 0.14, 1.3);
     fade(tl, q(".hero-b p, .hero-b .lnk"), 1.0, 0.95, 22, 0.14);
-    fade(tl, q(".hero-scroll"), 1.5, 0.9, 12, 0);
+    fade(tl, q(".hf-card"), 1.25, 0.85, 18, 0.1);
+    fade(tl, q(".hero-scroll"), 1.6, 0.9, 12, 0);
     return tl;
   },
   (p) => {
@@ -920,11 +944,10 @@ export default function LandingPage() {
     mm.add(
       {
         any: "(min-width: 1px)",
-        full: "(min-width: 901px) and (min-height: 540px) and (prefers-reduced-motion: no-preference)",
         calm: "(prefers-reduced-motion: reduce)",
       },
       (ctx) => {
-        const { full, calm } = ctx.conditions;
+        const { calm } = ctx.conditions;
         const q = gsap.utils.selector(root);
         const panels = q("[data-panel]");
         const cleanups = [];
@@ -942,53 +965,6 @@ export default function LandingPage() {
           };
           return () => {
             root.classList.remove("st");
-            engine.current = null;
-          };
-        }
-
-        if (!full) {
-          root.classList.add("st");
-          ScrollTrigger.normalizeScroll({ allowNestedScroll: true });
-          ScrollTrigger.config({ ignoreMobileResize: true });
-          const tls = panels.map((p, i) => IN[i](p));
-          panels.forEach((p, i) => {
-            if (i === 0) {
-              gsap.delayedCall(0.2, () => tls[0].play());
-              return;
-            }
-            ScrollTrigger.create({
-              trigger: p,
-              start: "top 78%",
-              once: true,
-              onEnter: () => tls[i].play(),
-            });
-          });
-          q(".im img").forEach((img) => {
-            const wrap = img.closest(".im");
-            gsap.fromTo(
-              img,
-              { yPercent: -4 },
-              {
-                yPercent: 4,
-                ease: "none",
-                scrollTrigger: { trigger: wrap, start: "top bottom", end: "bottom top", scrub: true },
-              }
-            );
-          });
-          const navSt = ScrollTrigger.create({
-            trigger: panels[0],
-            start: "bottom top+=64",
-            onEnter: () => setGlass(true),
-            onLeaveBack: () => setGlass(false),
-          });
-          cleanups.push(() => navSt.kill());
-          engine.current = {
-            goTo: (i) => panels[i]?.scrollIntoView({ behavior: "smooth" }),
-          };
-          return () => {
-            cleanups.forEach((fn) => fn());
-            root.classList.remove("st");
-            ScrollTrigger.normalizeScroll(false);
             engine.current = null;
           };
         }
@@ -1153,6 +1129,37 @@ export default function LandingPage() {
           onDown: prev,
         });
 
+        /* ---- live touch parallax: while a finger is dragging (before the
+         * swipe threshold above fires a panel change), nudge this panel's
+         * depth ("dp") elements along with the gesture so mobile gets the
+         * same felt parallax that desktop gets from mouse movement. ------ */
+        const parallaxObs = Observer.create({
+          target: window,
+          type: "touch",
+          ignore: "textarea",
+          onDrag: (self) => {
+            if (S.busy) return;
+            const items = depthOf(panels[S.cur]);
+            if (!items.length) return;
+            gsap.to(items, {
+              y: (i, el) => (parseFloat(el.dataset.depth || 0.3) || 0.3) * self.y * 0.55,
+              duration: 0.25,
+              ease: "power2.out",
+              overwrite: "auto",
+            });
+          },
+          onRelease: () => {
+            if (S.busy) return;
+            gsap.to(depthOf(panels[S.cur]), {
+              y: 0,
+              duration: 0.5,
+              ease: "power2.out",
+              overwrite: "auto",
+            });
+          },
+        });
+        cleanups.push(() => parallaxObs.kill());
+
         const onKey = (e) => {
           const t = e.target;
           const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
@@ -1267,7 +1274,7 @@ export default function LandingPage() {
               as="h1"
               size="xl"
               className="hero-h"
-              lines={["SPACES.", { t: "~STORIES.", c: "l2" }, { t: "SOUL.", c: "l3" }]}
+              lines={["ASRANI", { t: "~INTERIORS", c: "l2" }]}
             />
           </div>
 
@@ -1279,6 +1286,25 @@ export default function LandingPage() {
             <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(5)}>
               Get in touch <Arrow />
             </a>
+          </div>
+
+          <div className="hero-flow">
+            {FLOW.map((f, idx) => (
+              <a
+                className="hf-card"
+                key={f.step}
+                href={`#${IDS[FLOW_TARGET[idx]]}`}
+                data-cur="View"
+                onClick={nav(FLOW_TARGET[idx])}
+              >
+                <span className="hf-no">{f.step}</span>
+                <h4 className="hf-t">{f.title}</h4>
+                <p className="hf-p">{f.text}</p>
+                <span className="hf-arrow" aria-hidden="true">
+                  <Arrow />
+                </span>
+              </a>
+            ))}
           </div>
 
           <div className="hero-scroll" aria-hidden="true">
@@ -1514,7 +1540,7 @@ html{scroll-behavior:smooth}
 .ai.st{scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
 
 .hd{font-family:var(--serif);font-weight:600;text-transform:uppercase;line-height:.96;letter-spacing:-.004em}
-.hd-xl{font-size:clamp(40px,7.6vw,150px)}
+.hd-xl{font-size:clamp(34px,6.6vw,118px)}
 .hd-l{font-size:clamp(34px,5.6vw,112px)}
 .hd-m{font-size:clamp(30px,4.9vw,98px)}
 .ln{display:block;overflow:hidden;padding:.22em .22em .12em;margin:-.22em -.22em -.12em}
@@ -1586,13 +1612,23 @@ html{scroll-behavior:smooth}
 .hero-spot{position:absolute;left:0;top:0;width:46vw;height:46vw;margin:-23vw 0 0 -23vw;z-index:4;pointer-events:none;will-change:transform;
   transform:translate(62vw,72vh);
   background:radial-gradient(circle,rgba(255,214,160,.26),rgba(255,214,160,.09) 42%,rgba(255,214,160,0) 68%)}
-.hero-h-wrap{position:absolute;z-index:5;left:11vw;right:var(--pad);top:26vh;max-width:82vw}
-.hero-h .l2{margin-left:clamp(0px,32vw,600px)}
-.hero-h .l3{margin-left:clamp(0px,37vw,690px)}
-.hero-b{position:absolute;z-index:5;left:50vw;top:69.5vh;width:min(22vw,420px)}
+.hero-h-wrap{position:absolute;z-index:5;left:11vw;right:var(--pad);top:23vh;max-width:82vw}
+.hero-h .l2{margin-left:clamp(0px,20vw,340px)}
+.hero-b{position:absolute;z-index:5;left:50vw;top:60vh;width:min(22vw,420px)}
 .hero-b p{line-height:1.4;font-size:1.02em}
-.hero-b .lnk{margin-top:6.4vh;min-width:min(17vw,300px)}
-.hero-scroll{position:absolute;z-index:5;left:var(--pad);bottom:4.4vh;display:none;align-items:center;gap:1.1em;color:var(--mute);
+.hero-b .lnk{margin-top:4.2vh;min-width:min(17vw,300px)}
+.hero-flow{position:absolute;z-index:5;left:var(--pad);right:var(--pad);bottom:5.5vh;display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vw}
+.hf-card{position:relative;display:block;background:rgba(20,15,11,.55);border:1px solid rgba(242,233,220,.14);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border-radius:10px;padding:1.4vw 3vw 1.3vw 1.4vw;cursor:pointer;text-decoration:none;color:inherit;
+  transition:background .4s,transform .4s cubic-bezier(.2,.7,.2,1),border-color .4s,box-shadow .4s}
+.hf-no{display:block;font-family:var(--mono);font-size:.78em;color:var(--acc);letter-spacing:.08em}
+.hf-t{margin-top:.6vh;font-family:var(--serif);font-weight:600;text-transform:uppercase;font-size:clamp(15px,1.15vw,20px);letter-spacing:.01em}
+.hf-p{margin-top:.9vh;color:var(--mute);font-size:.85em;line-height:1.42}
+.hf-arrow{position:absolute;right:1.2vw;bottom:1.25vh;width:1.5em;color:var(--acc);opacity:0;transform:translateX(-6px);transition:opacity .35s,transform .35s}
+.hf-card:hover{background:rgba(28,21,15,.78);border-color:rgba(210,166,121,.55);transform:translateY(-4px);box-shadow:0 16px 36px rgba(0,0,0,.35)}
+.hf-card:hover .hf-arrow{opacity:1;transform:none}
+.hf-card:active{transform:translateY(-1px) scale(.99)}
+.hero-scroll{position:absolute;z-index:5;left:var(--pad);bottom:2.2vh;display:none;align-items:center;gap:1.1em;color:var(--mute);
   text-transform:uppercase;font-size:.85em;letter-spacing:.06em}
 .fp .hero-scroll{display:flex}
 .hero-scroll i{display:block;width:1px;height:5.4vh;background:rgba(242,233,220,.22);position:relative;overflow:hidden}
@@ -1774,7 +1810,8 @@ html{scroll-behavior:smooth}
 
 @media (max-width:900px){
   .ai{font-size:15px;--pad:5.6vw;--nav-h:60px}
-  .hd-xl{font-size:16vw}.hd-l{font-size:12vw}.hd-m{font-size:10vw}
+  .fp .pin{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .hd-xl{font-size:13vw}.hd-l{font-size:12vw}.hd-m{font-size:10vw}
   .lnk{min-width:min(60vw,340px)}
   .mnav{display:flex}
   .menu-btn{display:grid}
@@ -1785,70 +1822,74 @@ html{scroll-behavior:smooth}
   .hero .pin{min-height:100svh}
   .hero-spot{display:none}
   .hero-grid{background-size:16vw 16vw}
-  .hero-h-wrap{left:var(--pad);right:var(--pad);top:22svh;max-width:none}
+  .hero-h-wrap{left:var(--pad);right:var(--pad);top:15svh;max-width:none}
   .hero-h .l2{margin-left:clamp(0px,9vw,80px)}
-  .hero-h .l3{margin-left:clamp(0px,18vw,150px)}
-  .hero-b{left:var(--pad);right:var(--pad);top:auto;bottom:9svh;width:auto}
+  .hero-b{left:var(--pad);right:var(--pad);top:auto;bottom:auto;width:auto;position:static;margin-top:30svh;padding:0 var(--pad)}
   .hero-b p{max-width:34ch}
-  .hero-b .lnk{margin-top:4svh;min-width:min(60vw,340px)}
+  .hero-b .lnk{margin-top:3svh;min-width:min(60vw,340px)}
+  .hero-flow{position:static;margin-top:4svh;padding:0 var(--pad) 4svh;left:auto;right:auto;bottom:auto;grid-template-columns:1fr;gap:3vw}
+  .hf-card{padding:4.5vw 9vw 4vw 4.5vw}
+  .hf-arrow{opacity:1;transform:none;right:4vw;bottom:4vw}
+  .hf-p{font-size:.92em}
+  .hero-scroll{display:none}
 
-  .ab .pin{padding:calc(var(--nav-h) + 6vh) var(--pad) 9vh;display:flex;flex-direction:column;gap:6vh}
+  .ab .pin{padding:calc(var(--nav-h) + 4vh) var(--pad) 5vh;display:flex;flex-direction:column;gap:3vh}
   .ab-l,.ab-r{position:static;width:auto}
   .ab-lbl,.ab-txt{position:static}
-  .ab-lbl{margin-bottom:5vh}
-  .ab-p{max-width:none;margin:3vh 0 4vh}
+  .ab-lbl{margin-bottom:2vh}
+  .ab-p{max-width:none;margin:2vh 0 2.6vh}
   .ab-r{grid-template-columns:1.5fr 1fr;gap:4vw}
-  .ab-i1{height:42vh}.ab-i2{height:22vh}
+  .ab-i1{height:30vh}.ab-i2{height:16vh}
 
-  .pfp .pin{padding-bottom:8vh}
-  .pf{position:relative;inset:auto;padding:calc(var(--nav-h) + 4vh) 0 0}
-  .pf-head{position:static;padding:0 var(--pad);margin-bottom:5vh}
+  .pfp .pin{padding-bottom:4vh}
+  .pf{position:relative;inset:auto;padding:calc(var(--nav-h) + 3vh) 0 0}
+  .pf-head{position:static;padding:0 var(--pad);margin-bottom:3vh}
   .pf-body{position:static;height:auto;display:block;padding:0 var(--pad)}
-  .pf-l .im{height:50vh}
-  .pf-r{display:block;margin-top:2.4vh}
-  .pf-meta{margin-bottom:1.6vh}
-  .pf-mid{grid-template-columns:1fr;gap:3vh;padding-top:1.2vh}
-  .pf-desc{max-width:none;margin-top:1.6vh}
-  .pf-acc{height:22vh}
+  .pf-l .im{height:32vh}
+  .pf-r{display:block;margin-top:2vh}
+  .pf-meta{margin-bottom:1.4vh}
+  .pf-mid{grid-template-columns:1fr;gap:2vh;padding-top:1vh}
+  .pf-desc{max-width:none;margin-top:1.2vh}
+  .pf-acc{height:16vh}
   .pf-accw{max-width:60vw}
-  .pf-foot{margin-top:3vh;gap:4vw;flex-wrap:wrap}
+  .pf-foot{margin-top:2vh;gap:4vw;flex-wrap:wrap}
   .pf-brief{max-width:none}
   .rb{width:50px;height:50px}
 
-  .svc .pin{padding:calc(var(--nav-h) + 4vh) var(--pad) 8vh;display:flex;flex-direction:column;gap:5vh}
+  .svc .pin{padding:calc(var(--nav-h) + 3vh) var(--pad) 4vh;display:flex;flex-direction:column;gap:3vh}
   .svc-txt,.svc-grid,.svc-note{position:static;width:auto}
-  .svc-txt p:not(.lbl){max-width:none;margin-top:3vh}
-  .svc-txt .lnk{margin-top:4vh}
+  .svc-txt p:not(.lbl){max-width:none;margin-top:2vh}
+  .svc-txt .lnk{margin-top:2.5vh}
   .svc-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:none;gap:3vw;padding:0;z-index:5}
-  .svc-card{margin:0;min-height:56vw}
+  .svc-card{margin:0;min-height:38vw}
   .c1,.c2,.c3,.c4{grid-column:auto;grid-row:auto}
   .sc{position:absolute}
   .sc-no{left:3.4vw;top:2vh}
-  .sc-img{right:3.4vw;top:2vh;width:60%;height:48%}
+  .sc-img{right:3.4vw;top:2vh;width:60%;height:44%}
   .sc-bot{left:3.4vw;right:3.4vw;bottom:2vh}
   .sc-t{font-size:5vw}
   .sc-more{display:none}
   .svc-note{text-align:left;max-width:none}
 
-  .jr .pin{padding:calc(var(--nav-h) + 4vh) var(--pad) 9vh}
-  .jr-head{position:static;text-align:left;margin-bottom:5vh}
-  .jr-grid{position:static;grid-template-columns:1fr 1fr;gap:6vh 4vw}
-  .jr-pic,.j1 .jr-pic{height:30vh}
-  .j1{grid-column:1 / -1}.j1 .jr-pic{height:42vh}
+  .jr .pin{padding:calc(var(--nav-h) + 3vh) var(--pad) 4vh}
+  .jr-head{position:static;text-align:left;margin-bottom:3vh}
+  .jr-grid{position:static;grid-template-columns:1fr 1fr;gap:3vh 4vw}
+  .jr-pic,.j1 .jr-pic{height:18vh}
+  .j1{grid-column:1 / -1}.j1 .jr-pic{height:24vh}
   .j3{margin-top:0}
   .jr-t{font-size:5.4vw}
   .jr-ov{display:none}
 
   .ct .pin{display:block}
-  .ct-main{grid-template-columns:1fr;gap:5vh;padding:calc(var(--nav-h) + 6vh) var(--pad) 8vh}
+  .ct-main{grid-template-columns:1fr;gap:3vh;padding:calc(var(--nav-h) + 4vh) var(--pad) 4vh}
   .ct-p{max-width:none}
   .cf-card{padding:6vw}
   .cf-2{grid-template-columns:1fr;gap:0}
   .cf-2 .fld{margin-top:1.4vh}
   .cf-send{min-width:min(60vw,340px)}
   .ft{min-height:auto;padding-bottom:1vh}
-  .ft-top{flex-direction:column;gap:5vh;padding:6vh var(--pad) 5vh}
-  .ft-cols{grid-template-columns:1fr;row-gap:4vh}
+  .ft-top{flex-direction:column;gap:3vh;padding:4vh var(--pad) 3vh}
+  .ft-cols{grid-template-columns:1fr;row-gap:3vh}
   .ft-col{grid-template-columns:28vw 1fr}
   .ft-col ul{max-width:none}
   .mq-t{font-size:14vw}.mq-s{font-size:5vw;margin:0 6vw}
@@ -1857,6 +1898,7 @@ html{scroll-behavior:smooth}
 @media (hover:none){
   .sc-more{grid-template-rows:1fr;opacity:1}
   .sc:hover .sc-img{transform:none}
+  .hf-arrow{opacity:1;transform:none}
 }
 
 @media (prefers-reduced-motion:reduce){
