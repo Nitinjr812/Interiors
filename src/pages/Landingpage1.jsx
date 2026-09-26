@@ -198,22 +198,32 @@ const FLOW = [
   },
 ];
 
+/* Meet-the-team roster (dummy placeholder photos — swap for real ones later). */
+const TEAM = [
+  { name: "Suraj Asrani", role: "Founder & Principal Designer", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  { name: "Manish Asrani", role: "Co-Founder & Creative Director", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  { name: "Ghanshyam Asrani", role: "Senior Design Consultant", img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  { name: "Nitin Kumar", role: "Design Lead", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  { name: "Piyush", role: "Site Supervisor", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  { name: "Shubham", role: "Design Associate", img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+];
+
 /* Which section each hero flow-card jumps to when clicked. */
-const FLOW_TARGET = [1, 3, 2]; // Architecture -> About, Interior Design -> Services, Interior Products -> Portfolio
+const FLOW_TARGET = [1, 4, 3]; // Architecture -> About, Interior Design -> Services, Interior Products -> Portfolio
 
 const NAV = [
   ["About us", 1],
-  ["Portfolio", 2],
+  ["Portfolio", 3],
   ["Gallery", "/gallery"],
-  ["Services", 3],
-  ["Journal", 4],
+  ["Services", 4],
+  ["Journal", 5],
 ];
 
-const IDS = ["home", "about", "portfolio", "services", "journal", "contact"];
-const LABELS = ["Home", "About", "Portfolio", "Services", "Journal", "Contact"];
+const IDS = ["home", "about", "team", "portfolio", "services", "journal", "contact"];
+const LABELS = ["Home", "About", "Team", "Portfolio", "Services", "Journal", "Contact"];
 
-const N = 6;
-const KIND = ["cover", "push", "cover", "cover", "push", "push"];
+const N = 7;
+const KIND = ["cover", "push", "cover", "cover", "cover", "push", "push"];
 
 /* ========================================================================== */
 /*  ANIMATION BUILDING BLOCKS                                                 */
@@ -290,6 +300,17 @@ const IN = [
     zoom(tl, q(".ab-i1 img"), 0.75, 1.8, 0);
     wipe(tl, q(".ab-i2"), 1.0, 1.3, 0);
     zoom(tl, q(".ab-i2 img"), 1.0, 1.8, 0);
+    return tl;
+  },
+  (p) => {
+    const q = gsap.utils.selector(p);
+    const tl = gsap.timeline({ paused: true });
+    fade(tl, q(".tm-l .lbl"), 0.4, 0.8, 10, 0);
+    rise(tl, q(".tm .ln-i"), 0.4, 0.1, 1.15);
+    fade(tl, q(".tm-p, .tm-l .lnk"), 0.85, 0.9, 20, 0.1);
+    wipe(tl, q(".tm-pic"), 0.55, 1.1, 0.09);
+    zoom(tl, q(".tm-pic img"), 0.55, 1.5, 0.09);
+    fade(tl, q(".tm-name, .tm-role"), 1.05, 0.7, 12, 0.06);
     return tl;
   },
   (p) => {
@@ -849,7 +870,7 @@ const Nav = ({ menu, setMenu, nav, glass, toGallery }) => (
           </li>
         ))}
       </ul>
-      <a className="nav-c" href="#contact" data-cur="Talk" onClick={nav(5)}>
+      <a className="nav-c" href="#contact" data-cur="Talk" onClick={nav(6)}>
         Contact
       </a>
       <button
@@ -881,7 +902,7 @@ const Nav = ({ menu, setMenu, nav, glass, toGallery }) => (
           </li>
         ))}
         <li>
-          <a href="#contact" onClick={nav(5)}>
+          <a href="#contact" onClick={nav(6)}>
             Contact
           </a>
         </li>
@@ -945,9 +966,10 @@ export default function LandingPage() {
       {
         any: "(min-width: 1px)",
         calm: "(prefers-reduced-motion: reduce)",
+        mobile: "(max-width: 900px)",
       },
       (ctx) => {
-        const { calm } = ctx.conditions;
+        const { calm, mobile } = ctx.conditions;
         const q = gsap.utils.selector(root);
         const panels = q("[data-panel]");
         const cleanups = [];
@@ -957,7 +979,13 @@ export default function LandingPage() {
           if (track) gsap.to(track, { xPercent: -50, duration: 38, ease: "none", repeat: -1 });
         }
 
-        if (calm) {
+        /* On phones/tablets the pinned, swipe-driven full-page engine fights
+         * with native scrolling (a section's own content can be taller than
+         * one screen), so panels end up clipped or unreachable. Below the
+         * 900px breakpoint we fall back to the same plain, statically
+         * stacked layout used for prefers-reduced-motion: normal page
+         * scroll, no touch hijacking, everything always reachable. */
+        if (calm || mobile) {
           root.classList.add("st");
           setGlass(true);
           engine.current = {
@@ -1177,7 +1205,7 @@ export default function LandingPage() {
           } else if (k === "End") {
             e.preventDefault();
             engine.current.goTo(N - 1);
-          } else if (S.cur === 2 && (k === "ArrowRight" || k === "ArrowLeft")) {
+          } else if (S.cur === 3 && (k === "ArrowRight" || k === "ArrowLeft")) {
             const btn = root.querySelector(k === "ArrowRight" ? ".pf-next" : ".pf-prev");
             btn && btn.click();
           }
@@ -1278,15 +1306,7 @@ export default function LandingPage() {
             />
           </div>
 
-          <div className="hero-b">
-            <p>
-              Asrani Interiors is a design studio creating light-filled, thoughtfully detailed homes
-              and workplaces, shaped around how you live.
-            </p>
-            <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(5)}>
-              Get in touch <Arrow />
-            </a>
-          </div>
+           
 
           <div className="hero-flow">
             {FLOW.map((f, idx) => (
@@ -1323,7 +1343,7 @@ export default function LandingPage() {
                 project begins with how you live and ends with the details you notice every day:
                 light, texture, proportion and purpose.
               </p>
-              <a className="lnk" href="#portfolio" data-cur="Work" onClick={nav(2)}>
+              <a className="lnk" href="#portfolio" data-cur="Work" onClick={nav(3)}>
                 Learn more <Arrow />
               </a>
             </div>
@@ -1336,6 +1356,35 @@ export default function LandingPage() {
               <Img className="ab-i2" src={IMG.about[1]} alt="Lounge corner with layered textures" tone={4} />
             </div>
           </div>
+        </Panel>
+
+        <Panel id="team" cls="tm">
+          <div className="tm-l">
+            <p className="lbl">Our Team</p>
+            <div className="tm-txt dp" data-depth="0.14">
+              <Hd size="l" lines={["~FACES", "BEHIND THE WORK"]} />
+              <p className="tm-p">
+                Asrani Interiors is run by a small, hands-on team that believes good design is
+                built on trust, patience and an obsessive attention to detail. From the first
+                sketch to the final styling session, the same people stay with your project — no
+                hand-offs, no guesswork, just a studio that shows up.
+              </p>
+              <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(6)}>
+                Work with us <Arrow />
+              </a>
+            </div>
+          </div>
+          <ul className="tm-grid">
+            {TEAM.map((m, k) => (
+              <li className={`tm-card t${k + 1}`} key={m.name}>
+                <div className="tm-pic dp" data-depth="0.18" data-cur="View" data-free="">
+                  <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} />
+                </div>
+                <h3 className="tm-name">{m.name}</h3>
+                <p className="tm-role">{m.role}</p>
+              </li>
+            ))}
+          </ul>
         </Panel>
 
         <Panel id="portfolio" cls="pfp">
@@ -1354,14 +1403,14 @@ export default function LandingPage() {
               We offer more than design. We shape experiences through clarity, texture, intention,
               and a thoughtful presence on site.
             </p>
-            <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(5)}>
+            <a className="lnk" href="#contact" data-cur="Talk" onClick={nav(6)}>
               Get in touch <Arrow />
             </a>
           </div>
           <ul className="svc-grid">
             {SERVICES.map((s, k) => (
               <li className={`svc-card c${k + 1}`} key={s.title}>
-                <a className="sc" href="#contact" data-cur="Explore" data-free="" onClick={nav(5)}>
+                <a className="sc" href="#contact" data-cur="Explore" data-free="" onClick={nav(6)}>
                   <span className="sc-no">{pad2(k + 1)}</span>
                   <Img className="sc-img" src={IMG.services[k]} alt="" tone={k + 1} />
                   <div className="sc-bot">
@@ -1644,6 +1693,19 @@ html{scroll-behavior:smooth}
 .ab-i1{height:65vh}
 .ab-i2{height:32vh}
 
+.tm{background:#0d0907}
+.tm-l{position:absolute;left:var(--pad);top:0;bottom:0;width:37vw;display:flex;flex-direction:column;justify-content:center}
+.tm-l .lbl{margin-bottom:1.2vh}
+.tm-p{max-width:min(32vw,520px);margin:3.6vh 0 4.6vh;color:var(--mute);line-height:1.5}
+.tm-grid{position:absolute;left:41vw;right:var(--pad);top:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,auto);align-content:center;gap:5.5vh 1.4vw}
+.tm-card{display:flex;flex-direction:column;align-items:center;text-align:center}
+.tm-pic{position:relative;width:min(9vw,160px);aspect-ratio:1/1;flex:none;overflow:hidden;border-radius:50%;border:1px solid rgba(242,233,220,.16)}
+.tm-img{position:absolute;inset:0}
+.tm-img img{filter:grayscale(85%) sepia(8%) contrast(1.02) brightness(.98);transition:filter .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.tm-card:hover .tm-img img{filter:grayscale(0) sepia(0) contrast(1) brightness(1);transform:scale(1.045)}
+.tm-name{margin-top:1.4vh;font-family:var(--serif);font-weight:600;text-transform:uppercase;font-size:clamp(12px,.92vw,17px);letter-spacing:.01em}
+.tm-role{margin-top:.35vh;color:var(--mute);font-size:.76em;text-transform:uppercase;letter-spacing:.03em}
+
 .pf{position:absolute;inset:0;touch-action:pan-y}
 .pf-head{position:absolute;top:9vh;left:0;right:0;text-align:center}
 .pf-head .lbl{margin-bottom:.6vh}
@@ -1841,6 +1903,14 @@ html{scroll-behavior:smooth}
   .ab-r{grid-template-columns:1.5fr 1fr;gap:4vw}
   .ab-i1{height:30vh}.ab-i2{height:16vh}
 
+  .tm .pin{padding:calc(var(--nav-h) + 4vh) var(--pad) 5vh;display:flex;flex-direction:column;gap:3vh}
+  .tm-l{position:static;width:auto;display:block}
+  .tm-p{max-width:none;margin:2vh 0 2.6vh}
+  .tm-grid{position:static;grid-template-columns:1fr 1fr;grid-template-rows:none;align-content:start;gap:5vh 4vw}
+  .tm-pic{width:min(32vw,150px);flex:none}
+  .tm-name{font-size:4vw}
+  .tm-role{font-size:3vw}
+
   .pfp .pin{padding-bottom:4vh}
   .pf{position:relative;inset:auto;padding:calc(var(--nav-h) + 3vh) 0 0}
   .pf-head{position:static;padding:0 var(--pad);margin-bottom:3vh}
@@ -1899,6 +1969,7 @@ html{scroll-behavior:smooth}
   .sc-more{grid-template-rows:1fr;opacity:1}
   .sc:hover .sc-img{transform:none}
   .hf-arrow{opacity:1;transform:none}
+  .tm-img img{filter:grayscale(0) sepia(0) contrast(1) brightness(1)}
 }
 
 @media (prefers-reduced-motion:reduce){
