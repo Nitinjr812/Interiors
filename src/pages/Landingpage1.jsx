@@ -1024,6 +1024,8 @@ export default function LandingPage() {
           const from = S.cur;
           const A = panels[from];
           const B = panels[to];
+          const pinB = pinOf(B);
+          pinB.scrollTop = dir === 1 ? 0 : Math.max(0, pinB.scrollHeight - pinB.clientHeight);
           const adjacent = dir === 1 ? to === (from + 1) % N : from === (to + 1) % N;
           const kind = adjacent ? KIND[dir === 1 ? from : to] : "cover";
           const dur = kind === "push" ? 1.05 : 1.15;
@@ -1183,43 +1185,47 @@ export default function LandingPage() {
          * only changes panels once you've swiped past its top/bottom
          * edge. Ignored inside the portfolio slider, which handles its
          * own horizontal swipe. ------------------------------------------ */
+        let tX0 = 0;
         let tY0 = 0;
         let tDY = 0;
         let tTracking = false;
-        let tLocked = null; // "y" | "skip" | null
+        let tLock = null; // "y" | "x" | null
         const onTStart = (e) => {
-          if (e.target.closest && e.target.closest("input, textarea, select, .pf")) {
+          if (e.target.closest && e.target.closest("input, textarea, select")) {
             tTracking = false;
             return;
           }
           const t = e.touches[0];
+          tX0 = t.clientX;
           tY0 = t.clientY;
           tDY = 0;
           tTracking = true;
-          tLocked = null;
+          tLock = null;
         };
         const onTMove = (e) => {
           if (!tTracking || S.busy) return;
           const t = e.touches[0];
+          const dx = t.clientX - tX0;
           const dy = t.clientY - tY0;
-          if (tLocked === null && Math.abs(dy) > 6) tLocked = "y";
-          if (tLocked !== "y") return;
-
-          const pin = curPin();
-          const goingUp = dy < 0; // finger moving up -> wants next panel
-          const boundary = !canScroll(pin) || (goingUp ? atBottom(pin) : atTop(pin));
-          if (boundary) {
-            if (e.cancelable) e.preventDefault();
-            tDY = dy;
-          } else {
-            tDY = 0;
+          if (tLock === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+            tLock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
           }
+          if (tLock !== "y") return; // horizontal gestures (portfolio carousel) untouched
+
+          tDY = dy; // always track the gesture's total offset, never reset mid-swipe
+          const pin = curPin();
+          const goingUp = dy < 0;
+          const boundary = !canScroll(pin) || (goingUp ? atBottom(pin) : atTop(pin));
+          if (boundary && e.cancelable) e.preventDefault();
         };
         const onTEnd = () => {
           if (!tTracking) return;
           tTracking = false;
-          if (tLocked !== "y") return;
-          if (Math.abs(tDY) > 46) tDY < 0 ? next() : prev();
+          if (tLock !== "y") return;
+          const pin = curPin();
+          const goingUp = tDY < 0;
+          const boundary = !canScroll(pin) || (goingUp ? atBottom(pin) : atTop(pin));
+          if (boundary && Math.abs(tDY) > 46) goingUp ? next() : prev();
           tDY = 0;
         };
         window.addEventListener("touchstart", onTStart, { passive: true });
