@@ -979,13 +979,15 @@ export default function LandingPage() {
           if (track) gsap.to(track, { xPercent: -50, duration: 38, ease: "none", repeat: -1 });
         }
 
-        /* On phones/tablets the pinned, swipe-driven full-page engine fights
-         * with native scrolling (a section's own content can be taller than
-         * one screen), so panels end up clipped or unreachable. Below the
-         * 900px breakpoint we fall back to the same plain, statically
-         * stacked layout used for prefers-reduced-motion: normal page
-         * scroll, no touch hijacking, everything always reachable. */
-        if (calm || mobile) {
+        /* Only prefers-reduced-motion gets the plain, statically stacked
+         * fallback (normal page scroll, no animated panel transitions).
+         * Mobile now runs the same pinned full-page engine as desktop —
+         * panels whose content is taller than one screen scroll natively
+         * inside themselves (see ".fp .pin{overflow-y:auto}" + the
+         * boundary-aware touch/wheel handling below), so a swipe only
+         * advances to the next panel once you've hit the top/bottom edge
+         * of the current one. */
+        if (calm) {
           root.classList.add("st");
           setGlass(true);
           engine.current = {
@@ -998,6 +1000,7 @@ export default function LandingPage() {
         }
 
         root.classList.add("fp");
+        if (mobile) root.classList.add("fp-m");
         panels.forEach((p, k) => p.classList.toggle("is-on", k === 0));
         setGlass(false);
         setActive(0);
@@ -1095,6 +1098,16 @@ export default function LandingPage() {
         const next = () => go((S.cur + 1) % N, 1);
         const prev = () => go((S.cur - 1 + N) % N, -1);
 
+        /* ---- scroll-boundary helpers: a panel's .pin can be taller than
+         * the viewport (team grid, services, contact+footer on narrow
+         * screens). These let the wheel/touch handlers tell whether the
+         * current panel still has room to scroll internally before the
+         * engine should advance to the next/previous panel. ------------- */
+        const curPin = () => pinOf(panels[S.cur]);
+        const canScroll = (el) => el.scrollHeight > el.clientHeight + 1;
+        const atTop = (el) => el.scrollTop <= 1;
+        const atBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight <= 1;
+
         engine.current = {
           goTo: (i) => {
             if (i !== S.cur) go(i, i > S.cur ? 1 : -1);
@@ -1132,7 +1145,24 @@ export default function LandingPage() {
           }
           prevAbs = a;
 
-          if (S.busy || !fresh) return;
+          if (S.busy) return;
+
+          const pin = curPin();
+          if (canScroll(pin)) {
+            const goingDown = dyRaw > 0;
+            if (goingDown && !atBottom(pin)) {
+              pin.scrollTop += dyRaw;
+              acc = 0;
+              return;
+            }
+            if (!goingDown && !atTop(pin)) {
+              pin.scrollTop += dyRaw;
+              acc = 0;
+              return;
+            }
+          }
+
+          if (!fresh) return;
 
           if (Math.sign(dyRaw) !== Math.sign(acc)) acc = 0;
           acc += dyRaw;
@@ -1146,15 +1176,59 @@ export default function LandingPage() {
         window.addEventListener("wheel", onWheel, { passive: false });
         cleanups.push(() => window.removeEventListener("wheel", onWheel));
 
-        const obs = Observer.create({
-          target: window,
-          type: "touch",
-          tolerance: 14,
-          dragMinimum: 10,
-          preventDefault: true,
-          ignore: "textarea",
-          onUp: next,
-          onDown: prev,
+        /* ---- vertical touch swipe: advances panels, but yields to native
+         * scrolling while the current panel's own content still has room
+         * (see the boundary helpers above) — so a tall panel (team grid,
+         * services, contact+footer) scrolls normally under a finger and
+         * only changes panels once you've swiped past its top/bottom
+         * edge. Ignored inside the portfolio slider, which handles its
+         * own horizontal swipe. ------------------------------------------ */
+        let tY0 = 0;
+        let tDY = 0;
+        let tTracking = false;
+        let tLocked = null; // "y" | "skip" | null
+        const onTStart = (e) => {
+          if (e.target.closest && e.target.closest("input, textarea, select, .pf")) {
+            tTracking = false;
+            return;
+          }
+          const t = e.touches[0];
+          tY0 = t.clientY;
+          tDY = 0;
+          tTracking = true;
+          tLocked = null;
+        };
+        const onTMove = (e) => {
+          if (!tTracking || S.busy) return;
+          const t = e.touches[0];
+          const dy = t.clientY - tY0;
+          if (tLocked === null && Math.abs(dy) > 6) tLocked = "y";
+          if (tLocked !== "y") return;
+
+          const pin = curPin();
+          const goingUp = dy < 0; // finger moving up -> wants next panel
+          const boundary = !canScroll(pin) || (goingUp ? atBottom(pin) : atTop(pin));
+          if (boundary) {
+            if (e.cancelable) e.preventDefault();
+            tDY = dy;
+          } else {
+            tDY = 0;
+          }
+        };
+        const onTEnd = () => {
+          if (!tTracking) return;
+          tTracking = false;
+          if (tLocked !== "y") return;
+          if (Math.abs(tDY) > 46) tDY < 0 ? next() : prev();
+          tDY = 0;
+        };
+        window.addEventListener("touchstart", onTStart, { passive: true });
+        window.addEventListener("touchmove", onTMove, { passive: false });
+        window.addEventListener("touchend", onTEnd, { passive: true });
+        cleanups.push(() => {
+          window.removeEventListener("touchstart", onTStart);
+          window.removeEventListener("touchmove", onTMove);
+          window.removeEventListener("touchend", onTEnd);
         });
 
         /* ---- live touch parallax: while a finger is dragging (before the
@@ -1268,7 +1342,6 @@ export default function LandingPage() {
         return () => {
           started = true;
           cleanups.forEach((fn) => fn());
-          obs.kill();
           panels.forEach((p) => p.classList.remove("is-on"));
           root.classList.remove("fp");
           engine.current = null;
@@ -1582,7 +1655,8 @@ html{scroll-behavior:smooth}
 .fp .stage{position:absolute;inset:0}
 .fp .panel{position:absolute;inset:0;visibility:hidden;overflow:hidden;backface-visibility:hidden}
 .fp .panel.is-on{visibility:visible;will-change:transform}
-.fp .pin{position:absolute;inset:0;min-height:0;will-change:transform}
+.fp .pin{position:absolute;inset:0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;will-change:transform;scrollbar-width:none}
+.fp .pin::-webkit-scrollbar{display:none}
 .panel{position:relative;background:var(--bg);overflow:hidden}
 .pin{position:relative;min-height:100vh;min-height:100svh;width:100%}
 .veil{position:absolute;inset:0;background:#0a0705;opacity:0;pointer-events:none;z-index:60}
@@ -1872,7 +1946,7 @@ html{scroll-behavior:smooth}
 
 @media (max-width:900px){
   .ai{font-size:15px;--pad:5.6vw;--nav-h:60px}
-  .fp .pin{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .rule{display:none!important}
   .hd-xl{font-size:13vw}.hd-l{font-size:12vw}.hd-m{font-size:10vw}
   .lnk{min-width:min(60vw,340px)}
   .mnav{display:flex}
