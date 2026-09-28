@@ -833,14 +833,54 @@ function Portfolio() {
 /*  CONTACT FORM                                                              */
 /* ========================================================================== */
 
+/* Enquiries from the contact form are emailed via Web3Forms (no backend).
+ * The receiving inbox is the one this access key was created with; the key is
+ * meant to be public, so it is safe to keep in frontend code. */
+const WEB3FORMS_KEY = "c8bc3566-dcc7-4816-9eec-7041e99f6ad3";
+
 function ContactForm() {
-  const [sent, setSent] = useState(false);
-  const onSubmit = (e) => {
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const onSubmit = async (e) => {
     e.preventDefault();
-    setSent(true);
+    if (status === "sending") return;
+    const form = e.currentTarget;
+    const d = Object.fromEntries(new FormData(form).entries());
+    if (d.botcheck) {
+      // a bot filled the hidden field: pretend success, send nothing
+      setStatus("sent");
+      return;
+    }
+    setStatus("sending");
+    try {
+      const res = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_KEY,
+          subject: `New enquiry from ${d.name} — ${SITE.name}`,
+          from_name: SITE.name,
+          name: d.name,
+          phone: d.phone || "-",
+          email: d.email,
+          message: d.message || "-",
+          botcheck: "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setStatus("sent");
+        form.reset();
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
   };
+  const busy = status === "sending";
   return (
     <form className="cf" onSubmit={onSubmit}>
+      <input type="text" name="botcheck" tabIndex={-1} autoComplete="off" aria-hidden="true" className="cf-hp" />
       <label className="fld">
         <input name="name" placeholder="Name" aria-label="Name" autoComplete="name" required />
         <i className="fld-line" />
@@ -865,11 +905,19 @@ function ContactForm() {
       <label className="fld fld-ta">
         <textarea name="message" rows={3} placeholder="Message" aria-label="Message" />
       </label>
-      <button type="submit" className="lnk cf-send" data-cur="Send">
-        Send request <Arrow />
+      <button type="submit" className="lnk cf-send" data-cur="Send" disabled={busy} aria-busy={busy}>
+        {busy ? "Sending…" : "Send request"} <Arrow />
       </button>
-      <p className={`cf-ok ${sent ? "show" : ""}`} role="status" aria-live="polite">
-        {sent ? "Thank you. We’ll get back to you within one working day." : ""}
+      <p
+        className={`cf-ok ${status === "sent" || status === "error" ? "show" : ""} ${status === "error" ? "cf-bad" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        {status === "sent"
+          ? "Thank you. We’ll get back to you within one working day."
+          : status === "error"
+            ? `Couldn’t send right now. Please try again or email ${SITE.email}.`
+            : ""}
       </p>
     </form>
   );
@@ -2127,10 +2175,11 @@ html{scroll-behavior:smooth}
 .j1 .jr-a:hover .jr-t{opacity:0}
 
 .ct .pin{display:flex;flex-direction:column}
-.ct-main{flex:1;min-height:0;padding:calc(var(--nav-h) + 6vh) var(--pad) 2vh;display:grid;grid-template-columns:1fr 1fr;gap:3vw;align-content:start}
+.ct-main{flex:1;min-height:0;padding:calc(var(--nav-h) + 4.5vh) var(--pad) 3vh;display:grid;grid-template-columns:1fr 1fr;gap:4vw;align-items:stretch;align-content:center}
+.ct-l{display:flex;flex-direction:column;min-width:0}
 .ct-l .hd{margin-top:1.2vh}
-.ct-p{margin-top:4.2vh;max-width:min(24vw,460px);color:var(--mute);line-height:1.5}
-.cf-card{background:rgba(242,233,220,.045);border:1px solid rgba(242,233,220,.1);border-radius:14px;padding:2.6vw}
+.ct-p{margin-top:auto;padding-top:3vh;max-width:min(26vw,460px);color:var(--mute);line-height:1.5}
+.cf-card{background:rgba(242,233,220,.045);border:1px solid rgba(242,233,220,.1);border-radius:14px;padding:clamp(20px,2.2vw,40px);max-width:640px;width:100%;justify-self:end}
 .cf{position:relative}
 .fld{display:block;position:relative}
 .fld input,.fld textarea{width:100%;display:block;background:transparent;border:0;color:var(--ink);font:inherit;padding:.85em .15em;outline:none;transition:color .3s}
@@ -2140,14 +2189,17 @@ html{scroll-behavior:smooth}
 .fld:focus-within .fld-line{background:var(--acc);box-shadow:0 1px 8px rgba(210,166,121,.4)}
 .cf-2{display:grid;grid-template-columns:1fr 1fr;gap:1.6vw;margin-top:1.4vh}
 .cf > .fld:first-child{margin-top:0}
-.fld-ta{margin-top:2.6vh}
-.fld-ta textarea{border:1px solid rgba(242,233,220,.42);padding:.9em .85em;resize:none;min-height:9vh;border-radius:6px;transition:border-color .3s}
+.fld-ta{margin-top:2vh}
+.fld-ta textarea{border:1px solid rgba(242,233,220,.42);padding:.9em .85em;resize:none;min-height:11vh;border-radius:6px;transition:border-color .3s}
 .fld-ta textarea:focus{border-color:var(--acc)}
-.cf-send{margin-top:4.6vh;min-width:min(17.5vw,320px)}
-.cf-ok{margin-top:1.4vh;color:var(--acc);min-height:1.4em;opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+.cf-send{margin-top:3.4vh;min-width:min(17.5vw,320px)}
+.cf-send:disabled{opacity:.55;cursor:progress}
+.cf-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+.cf-ok{margin-top:1.2vh;color:var(--acc);min-height:1.4em;opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
 .cf-ok.show{opacity:1;transform:none}
+.cf-ok.cf-bad{color:#e39a89}
 
-.ft{background:#1b1511;padding:0;min-height:38vh;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.ft{background:#1b1511;padding:0;min-height:0;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
 .ft-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4vh;padding:4.4vh var(--pad) 0}
 .ft-logo{font-family:var(--serif);font-weight:700;letter-spacing:.09em;text-transform:uppercase;font-size:1.3em;white-space:nowrap;transition:color .35s}
 .ft-logo:hover{color:var(--acc)}
@@ -2304,8 +2356,9 @@ html{scroll-behavior:smooth}
 
   .ct .pin{display:block}
   .ct-main{grid-template-columns:1fr;gap:3vh;padding:calc(var(--nav-h) + 4vh) var(--pad) 4vh}
-  .ct-p{max-width:none}
-  .cf-card{padding:6vw}
+  .ct-l{display:block}
+  .ct-p{max-width:none;margin-top:2vh;padding-top:0}
+  .cf-card{padding:6vw;max-width:none;justify-self:stretch}
   .cf-2{grid-template-columns:1fr;gap:0}
   .cf-2 .fld{margin-top:1.4vh}
   .cf-send{min-width:min(60vw,340px)}
