@@ -200,12 +200,42 @@ const FLOW = [
 
 /* Meet-the-team roster (dummy placeholder photos — swap for real ones later). */
 const TEAM = [
-  { name: "Suraj Asrani", role: "Founder & Principal Designer", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
-  { name: "Manish Asrani", role: "Co-Founder & Creative Director", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
-  { name: "Ghanshyam Asrani", role: "Senior Design Consultant", img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
-  { name: "Nitin Kumar", role: "Design Lead", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
-  { name: "Piyush", role: "Site Supervisor", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
-  { name: "Shubham", role: "Design Associate", img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80" },
+  {
+    name: "Suraj Asrani",
+    role: "Founder",
+    bio: "Oversees the company's overall vision and direction, and holds final responsibility for its growth strategy and major decisions.",
+    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
+  {
+    name: "Manish Asrani",
+    role: "Co-Founder",
+    bio: "Works alongside the Founder on company planning, management and business development, staying closely involved in key operational and strategic decisions.",
+    img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
+  {
+    name: "Ghanshyam Asrani",
+    role: "CEO",
+    bio: "Leads the company's day-to-day operations, coordinating every department and ensuring the Founder and Co-Founder's strategy is carried through by the team.",
+    img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
+  {
+    name: "Nitin Kumar",
+    role: "Digital Head",
+    bio: "Heads the company's digital department — social media, digital marketing, online presence, campaigns, content coordination, leads and digital growth.",
+    img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
+  {
+    name: "Piyush",
+    role: "Interior Designer",
+    bio: "Handles interior design, space planning and design concepts, coordinating designs and execution around each client's requirements.",
+    img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
+  {
+    name: "Shubham Saini",
+    role: "Civil Engineer",
+    bio: "Oversees civil work and site-related technical activities, monitoring site measurements, material and work coordination, and construction quality and progress.",
+    img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+  },
 ];
 
 /* Which section each hero flow-card jumps to when clicked. */
@@ -939,6 +969,179 @@ export default function LandingPage() {
     }
   };
 
+  /* ---- team lightbox: click a team photo and it flies from its circular
+   * thumbnail into a full-screen portrait, morphing from a circle into a
+   * rounded rectangle along the way — the same fly-and-land technique the
+   * gallery page uses for its tiles, reused here for the team grid. ------- */
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [teamIdx, setTeamIdx] = useState(0);
+  const teamLbRef = useRef(null);
+  const teamFigRef = useRef(null);
+  const teamGhostsRef = useRef(null);
+  const teamCloseRef = useRef(null);
+  const teamMeta = useRef({ tile: null, r: null });
+  const teamBusy = useRef(false);
+  const teamOpenRef = useRef(false);
+  useEffect(() => {
+    teamOpenRef.current = teamOpen;
+  }, [teamOpen]);
+
+  const openTeamLb = (k, tileEl) => {
+    if (teamBusy.current || !tileEl) return;
+    teamBusy.current = true;
+    const pic = tileEl.querySelector(".tm-pic");
+    teamMeta.current = { tile: tileEl, r: pic.getBoundingClientRect() };
+    setTeamIdx(k);
+    setTeamOpen(true);
+  };
+
+  const closeTeamLb = () => {
+    if (teamBusy.current || !teamOpen) return;
+    teamBusy.current = true;
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fig = teamFigRef.current;
+    const q = gsap.utils.selector(teamLbRef.current);
+    const tile = teamMeta.current.tile;
+    const pic = tile ? tile.querySelector(".tm-pic") : null;
+    const srcImg = fig.querySelector("img");
+
+    const ghost = document.createElement("div");
+    ghost.className = "tm-lb-ghost";
+    const gImg = document.createElement("img");
+    gImg.src = srcImg ? srcImg.currentSrc || srcImg.src : "";
+    gImg.alt = "";
+    gImg.draggable = false;
+    ghost.appendChild(gImg);
+    const fr = fig.getBoundingClientRect();
+    Object.assign(ghost.style, {
+      left: fr.left + "px",
+      top: fr.top + "px",
+      width: fr.width + "px",
+      height: fr.height + "px",
+      borderRadius: "16px",
+    });
+    teamGhostsRef.current.appendChild(ghost);
+
+    gsap.set(fig, { autoAlpha: 0 });
+    gsap.to(q(".tm-lb-txt, .tm-lb-top"), { autoAlpha: 0, duration: calm ? 0 : 0.3, stagger: 0.02 });
+    gsap.to(q(".tm-lb-bg"), { autoAlpha: 0, duration: calm ? 0 : 0.7, delay: calm ? 0 : 0.15, ease: "power2.inOut" });
+
+    const finish = () => {
+      ghost.remove();
+      if (tile) tile.style.visibility = "";
+      teamMeta.current.tile = null;
+      setTeamOpen(false);
+      teamBusy.current = false;
+      if (tile) {
+        const b = tile.querySelector(".tm-b");
+        if (b) b.focus({ preventScroll: true });
+      }
+    };
+    const tr = pic ? pic.getBoundingClientRect() : null;
+    if (tr) {
+      gsap.to(ghost, {
+        left: tr.left,
+        top: tr.top,
+        width: tr.width,
+        height: tr.height,
+        borderRadius: "50%",
+        duration: calm ? 0 : 0.95,
+        ease: "power4.inOut",
+        onComplete: finish,
+      });
+    } else {
+      gsap.to(ghost, { autoAlpha: 0, scale: 0.96, duration: calm ? 0 : 0.5, onComplete: finish });
+    }
+  };
+
+  useIso(() => {
+    if (!teamOpen) return;
+    const m = TEAM[teamIdx];
+    const meta = teamMeta.current;
+    if (!m || !meta.r) {
+      teamBusy.current = false;
+      return;
+    }
+    const lb = teamLbRef.current;
+    const fig = teamFigRef.current;
+    const q = gsap.utils.selector(lb);
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fr = fig.getBoundingClientRect();
+
+    gsap.set(fig, { autoAlpha: 0 });
+    gsap.fromTo(q(".tm-lb-bg"), { autoAlpha: 0 }, { autoAlpha: 1, duration: calm ? 0 : 0.6, ease: "power2.out" });
+    gsap.fromTo(
+      q(".tm-lb-top"),
+      { autoAlpha: 0, y: -12 },
+      { autoAlpha: 1, y: 0, duration: calm ? 0 : 0.6, delay: calm ? 0 : 0.35, ease: "power3.out" }
+    );
+    if (meta.tile) meta.tile.style.visibility = "hidden";
+
+    const ghost = document.createElement("div");
+    ghost.className = "tm-lb-ghost";
+    const gImg = document.createElement("img");
+    gImg.src = m.img;
+    gImg.alt = "";
+    gImg.draggable = false;
+    ghost.appendChild(gImg);
+    Object.assign(ghost.style, {
+      left: meta.r.left + "px",
+      top: meta.r.top + "px",
+      width: meta.r.width + "px",
+      height: meta.r.height + "px",
+      borderRadius: "50%",
+    });
+    teamGhostsRef.current.appendChild(ghost);
+
+    let landed = false;
+    const land = () => {
+      if (landed) return;
+      landed = true;
+      gsap.set(fig, { autoAlpha: 1 });
+      ghost.remove();
+      teamBusy.current = false;
+      if (teamCloseRef.current) teamCloseRef.current.focus({ preventScroll: true });
+    };
+    gsap.to(ghost, {
+      left: fr.left,
+      top: fr.top,
+      width: fr.width,
+      height: fr.height,
+      borderRadius: 16,
+      duration: calm ? 0 : 1.05,
+      ease: "power4.inOut",
+      onComplete: () => {
+        const im = new Image();
+        im.src = m.img;
+        const p = im.decode ? im.decode().catch(() => {}) : Promise.resolve();
+        Promise.race([p, new Promise((r) => setTimeout(r, 1200))]).then(land);
+      },
+    });
+
+    gsap.fromTo(
+      q(".tm-lb-txt"),
+      { autoAlpha: 0, y: 18 },
+      { autoAlpha: 1, y: 0, duration: calm ? 0 : 0.8, delay: calm ? 0 : 0.9, ease: "power3.out", stagger: calm ? 0 : 0.07 }
+    );
+  }, [teamOpen, teamIdx]);
+
+  /* lock page scroll + Escape-to-close while the team viewer is open */
+  useEffect(() => {
+    document.documentElement.style.overflow = teamOpen ? "hidden" : "";
+    if (!teamOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeTeamLb();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.documentElement.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [teamOpen]);
+
   useEffect(() => {
     const urls = [IMG.hero, ...IMG.about, IMG.servicesBg, ...IMG.services, ...IMG.journal];
     const run = () =>
@@ -1123,6 +1326,7 @@ export default function LandingPage() {
         let prevAbs = 0;
         let fresh = true;
         const onWheel = (e) => {
+          if (teamOpenRef.current) return;
           if (e.ctrlKey) return;
           if (e.target && e.target.closest && e.target.closest("textarea")) return;
           e.preventDefault();
@@ -1191,6 +1395,10 @@ export default function LandingPage() {
         let tTracking = false;
         let tLock = null; // "y" | "x" | null
         const onTStart = (e) => {
+          if (teamOpenRef.current) {
+            tTracking = false;
+            return;
+          }
           if (e.target.closest && e.target.closest("input, textarea, select")) {
             tTracking = false;
             return;
@@ -1269,6 +1477,7 @@ export default function LandingPage() {
         cleanups.push(() => parallaxObs.kill());
 
         const onKey = (e) => {
+          if (teamOpenRef.current) return;
           const t = e.target;
           const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
           if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -1441,7 +1650,7 @@ export default function LandingPage() {
           <div className="tm-l">
             <p className="lbl">Our Team</p>
             <div className="tm-txt dp" data-depth="0.14">
-              <Hd size="l" lines={["~FACES", "BEHIND THE WORK"]} />
+              <Hd size="l" lines={["COMPANY TEAM", "~STRUCTURE"]} />
               <p className="tm-p">
                 Asrani Interiors is run by a small, hands-on team that believes good design is
                 built on trust, patience and an obsessive attention to detail. From the first
@@ -1456,8 +1665,17 @@ export default function LandingPage() {
           <ul className="tm-grid">
             {TEAM.map((m, k) => (
               <li className={`tm-card t${k + 1}`} key={m.name}>
-                <div className="tm-pic dp" data-depth="0.18" data-cur="View" data-free="">
-                  <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} />
+                <div className="tm-pic dp" data-depth="0.18">
+                  <button
+                    type="button"
+                    className="tm-b"
+                    data-cur="View"
+                    data-free=""
+                    aria-label={`View ${m.name}, ${m.role}`}
+                    onClick={(e) => openTeamLb(k, e.currentTarget.closest(".tm-card"))}
+                  >
+                    <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} />
+                  </button>
                 </div>
                 <h3 className="tm-name">{m.name}</h3>
                 <p className="tm-role">{m.role}</p>
@@ -1619,6 +1837,34 @@ export default function LandingPage() {
           </footer>
         </Panel>
       </main>
+
+      <div
+        className={`tm-lb ${teamOpen ? "open" : ""}`}
+        ref={teamLbRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Team member"
+        aria-hidden={!teamOpen}
+      >
+        <div className="tm-lb-bg" onClick={closeTeamLb} />
+        <div className="tm-lb-top">
+          <span className="tm-lb-brand">{SITE.name}</span>
+          <button type="button" className="tm-lb-x" ref={teamCloseRef} data-cur="Close" onClick={closeTeamLb}>
+            Close <i />
+          </button>
+        </div>
+        <div className="tm-lb-main">
+          <div className="tm-lb-fig" ref={teamFigRef}>
+            <img src={TEAM[teamIdx].img} alt={TEAM[teamIdx].name} draggable="false" />
+          </div>
+          <div className="tm-lb-info">
+            <p className="tm-lb-txt lbl">{TEAM[teamIdx].role}</p>
+            <h3 className="tm-lb-txt tm-lb-t">{TEAM[teamIdx].name}</h3>
+            <p className="tm-lb-txt tm-lb-d">{TEAM[teamIdx].bio}</p>
+          </div>
+        </div>
+        <div className="tm-lb-ghosts" ref={teamGhostsRef} />
+      </div>
 
       <Cursor rootRef={rootRef} />
     </div>
@@ -1785,6 +2031,28 @@ html{scroll-behavior:smooth}
 .tm-card:hover .tm-img img{filter:grayscale(0) sepia(0) contrast(1) brightness(1);transform:scale(1.045)}
 .tm-name{margin-top:1.4vh;font-family:var(--serif);font-weight:600;text-transform:uppercase;font-size:clamp(12px,.92vw,17px);letter-spacing:.01em}
 .tm-role{margin-top:.35vh;color:var(--mute);font-size:.76em;text-transform:uppercase;letter-spacing:.03em}
+.tm-b{position:absolute;inset:0;display:block;width:100%;height:100%;-webkit-tap-highlight-color:transparent}
+.tm-b:focus-visible{outline:1px solid var(--acc);outline-offset:3px;border-radius:50%}
+
+.tm-lb{position:fixed;inset:0;z-index:500;visibility:hidden;pointer-events:none}
+.tm-lb.open{visibility:visible;pointer-events:auto}
+.tm-lb-bg{position:absolute;inset:0;background:rgba(12,8,6,.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.tm-lb-top{position:absolute;left:0;right:0;top:0;height:max(var(--nav-h),56px);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);z-index:30}
+.tm-lb-brand{font-family:var(--serif);font-weight:700;font-size:1.4em;letter-spacing:.09em;text-transform:uppercase}
+.tm-lb-x{display:inline-flex;align-items:center;gap:.8em;text-transform:uppercase;font-weight:500;letter-spacing:.02em;padding:.6em 0;transition:color .35s}
+.tm-lb-x:hover{color:var(--acc)}
+.tm-lb-x i{position:relative;display:block;width:20px;height:20px;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.tm-lb-x:hover i{transform:rotate(90deg)}
+.tm-lb-x i::before,.tm-lb-x i::after{content:"";position:absolute;left:0;right:0;top:50%;height:1.5px;background:currentColor;transform:rotate(45deg)}
+.tm-lb-x i::after{transform:rotate(-45deg)}
+.tm-lb-main{position:absolute;inset:0;z-index:10;padding:calc(max(var(--nav-h),56px) + 2vh) var(--pad) 4vh;display:grid;grid-template-columns:min(30vw,440px) minmax(0,34ch);justify-content:center;align-items:center;gap:5vw}
+.tm-lb-fig{position:relative;aspect-ratio:4/5;max-height:76vh;width:100%;justify-self:end;overflow:hidden;border-radius:16px;background:#0d0907}
+.tm-lb-fig img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tm-lb-t{margin-top:1.6vh;font-family:var(--serif);font-weight:600;text-transform:uppercase;font-size:clamp(30px,3.6vw,70px);line-height:.98}
+.tm-lb-d{margin-top:3vh;color:var(--mute);line-height:1.55}
+.tm-lb-ghosts{position:absolute;inset:0;z-index:40;pointer-events:none}
+.tm-lb-ghost{position:fixed;overflow:hidden;background:#0d0907;will-change:left,top,width,height,border-radius}
+.tm-lb-ghost img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 
 .pf{position:absolute;inset:0;touch-action:pan-y}
 .pf-head{position:absolute;top:9vh;left:0;right:0;text-align:center}
@@ -1990,6 +2258,10 @@ html{scroll-behavior:smooth}
   .tm-pic{width:min(32vw,150px);flex:none}
   .tm-name{font-size:4vw}
   .tm-role{font-size:3vw}
+  .tm-lb-main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;align-content:center;justify-content:stretch;gap:3vh;padding:calc(56px + 2vh) var(--pad) 4vh}
+  .tm-lb-fig{width:min(72vw,340px);max-height:50vh;justify-self:center}
+  .tm-lb-t{margin-top:.8vh;font-size:9vw}
+  .tm-lb-d{margin-top:1.6vh}
 
   .pfp .pin{padding-bottom:4vh}
   .pf{position:relative;inset:auto;padding:calc(var(--nav-h) + 3vh) 0 0}
