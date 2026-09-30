@@ -4,6 +4,7 @@ import Navbar from "./components/Navbar"
 import LandingPage from "./pages/Landingpage1"
 import GalleryPage from "./pages/Gallery" 
 import PortfolioPage from "./pages/Portfolio"
+import ConstructionPage from "./pages/ConstructionPage";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/gallery" element={<GalleryPage/>} />
         <Route path="/Portfolio" element={<PortfolioPage/>} />
+        <Route path="/construction" element={<ConstructionPage />} />
       </Routes>
     </BrowserRouter>
   )

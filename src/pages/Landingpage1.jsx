@@ -183,7 +183,8 @@ const JOURNAL = [
 const FLOW = [
   {
     step: "01",
-    title: "Architecture",
+    title: "Contructions",
+    to: "/construction",
     text: "Planning and construction from the ground up — a home built entirely around how you live.",
   },
   {
@@ -204,7 +205,7 @@ const TEAM = [
     name: "Suraj Asrani",
     role: "Founder",
     bio: "Oversees the company's overall vision and direction, and holds final responsibility for its growth strategy and major decisions.",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img: "src/assets/suraj.jpeg",
   },
   {
     name: "Manish Asrani",
@@ -222,19 +223,19 @@ const TEAM = [
     name: "Nitin Kumar",
     role: "Digital Head",
     bio: "Heads the company's digital department — social media, digital marketing, online presence, campaigns, content coordination, leads and digital growth.",
-    img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img: "src/assets/nitin ji.jpeg",
   },
   {
     name: "Piyush",
     role: "Interior Designer",
     bio: "Handles interior design, space planning and design concepts, coordinating designs and execution around each client's requirements.",
-    img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img: "src/assets/piyush.jpeg",
   },
   {
     name: "Shubham Saini",
     role: "Civil Engineer",
     bio: "Oversees civil work and site-related technical activities, monitoring site measurements, material and work coordination, and construction quality and progress.",
-    img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img: "src/assets/shubham.jpeg",
   },
 ];
 
@@ -1009,6 +1010,12 @@ export default function LandingPage() {
     setMenu(false);
     navigate("/gallery");
   };
+  const toPage = (path) => (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    setMenu(false);
+    navigate(path);
+  };
   const nav = (i) => (e) => {
     if (engine.current) {
       e.preventDefault();
@@ -1161,7 +1168,7 @@ export default function LandingPage() {
       onComplete: () => {
         const im = new Image();
         im.src = m.img;
-        const p = im.decode ? im.decode().catch(() => {}) : Promise.resolve();
+        const p = im.decode ? im.decode().catch(() => { }) : Promise.resolve();
         Promise.race([p, new Promise((r) => setTimeout(r, 1200))]).then(land);
       },
     });
@@ -1642,16 +1649,16 @@ export default function LandingPage() {
             />
           </div>
 
-           
+
 
           <div className="hero-flow">
             {FLOW.map((f, idx) => (
               <a
                 className="hf-card"
                 key={f.step}
-                href={`#${IDS[FLOW_TARGET[idx]]}`}
+                href={f.to || `#${IDS[FLOW_TARGET[idx]]}`}
                 data-cur="View"
-                onClick={nav(FLOW_TARGET[idx])}
+                onClick={f.to ? toPage(f.to) : nav(FLOW_TARGET[idx])}
               >
                 <span className="hf-no">{f.step}</span>
                 <h4 className="hf-t">{f.title}</h4>
@@ -1661,6 +1668,7 @@ export default function LandingPage() {
                 </span>
               </a>
             ))}
+
           </div>
 
           <div className="hero-scroll" aria-hidden="true">
@@ -2286,10 +2294,8 @@ html{scroll-behavior:smooth}
   .hero-grid{background-size:16vw 16vw}
   .hero-h-wrap{left:var(--pad);right:var(--pad);top:15svh;max-width:none}
   .hero-h .l2{margin-left:clamp(0px,9vw,80px)}
-  .hero-b{left:var(--pad);right:var(--pad);top:auto;bottom:auto;width:auto;position:static;margin-top:30svh;padding:0 var(--pad)}
-  .hero-b p{max-width:34ch}
   .hero-b .lnk{margin-top:3svh;min-width:min(60vw,340px)}
-  .hero-flow{position:static;margin-top:4svh;padding:0 var(--pad) 4svh;left:auto;right:auto;bottom:auto;grid-template-columns:1fr;gap:3vw}
+  .hero-flow{position:relative;z-index:5;left:auto;right:auto;bottom:auto;margin-top:calc(15svh + 28vw + 3svh);padding:0 var(--pad) 5svh;grid-template-columns:1fr;gap:3vw}
   .hf-card{padding:4.5vw 9vw 4vw 4.5vw}
   .hf-arrow{opacity:1;transform:none;right:4vw;bottom:4vw}
   .hf-p{font-size:.92em}
