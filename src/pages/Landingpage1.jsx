@@ -222,6 +222,7 @@ const TEAM = [
     role: "Co-Founder",
     bio: "Works alongside the Founder on company planning, management and business development, staying closely involved in key operational and strategic decisions.",
     img:  manish,
+    pos: "50% 15%",
   },
   {
     name: "Ghanshyam Asrani",
