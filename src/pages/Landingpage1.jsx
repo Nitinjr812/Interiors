@@ -7,10 +7,12 @@ import { useNavigate } from "react-router-dom";
 import { Observer } from "gsap/Observer";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import suraj from "../assets/suraj.jpeg";
-import nitin from "../assets/nitin ji.jpeg"
+import nitin from "../assets/nitin ji.jpeg";
 import piyush from "../assets/piyush.jpeg";
 import shubham from "../assets/shubham.jpeg";
 import ghanshyam from "../assets/ghanshyam.jpeg"
+import manish from "../assets/manish.jpeg"
+
 
 gsap.registerPlugin(Observer, ScrollTrigger);
 
@@ -204,25 +206,28 @@ const FLOW = [
   },
 ];
 
-/* Meet-the-team roster (dummy placeholder photos — swap for real ones later). */
+/* Meet-the-team roster (dummy placeholder photos — swap for real ones later).
+ * `pos` (optional) = CSS object-position for the circular thumbnail, so you can
+ * shift the crop focus (e.g. "50% 15%" keeps faces from being cut off at the top). */
 const TEAM = [
   {
     name: "Suraj Asrani",
     role: "Founder",
     bio: "Oversees the company's overall vision and direction, and holds final responsibility for its growth strategy and major decisions.",
     img: suraj,
+    pos: "50% 15%", // <-- tune this: "50% 0%" = max top, "50% 30%" = slightly up
   },
   {
     name: "Manish Asrani",
     role: "Co-Founder",
     bio: "Works alongside the Founder on company planning, management and business development, staying closely involved in key operational and strategic decisions.",
-    img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img:  manish,
   },
   {
     name: "Ghanshyam Asrani",
     role: "CEO",
     bio: "Leads the company's day-to-day operations, coordinating every department and ensuring the Founder and Co-Founder's strategy is carried through by the team.",
-    img:  ghanshyam,
+    img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
   },
   {
     name: "Nitin Kumar",
@@ -447,7 +452,8 @@ function Hd({ as: Tag = "h2", lines, size = "m", className = "" }) {
   );
 }
 
-function Img({ src, alt = "", className = "", tone = 0, eager = false }) {
+/* `pos` = optional CSS object-position (e.g. "50% 15%") to shift the crop focus. */
+function Img({ src, alt = "", className = "", tone = 0, eager = false, pos }) {
   const [bad, setBad] = useState(false);
   return (
     <div className={`im ${className}`} style={{ "--t": tone }}>
@@ -458,7 +464,11 @@ function Img({ src, alt = "", className = "", tone = 0, eager = false }) {
           loading={eager ? "eager" : "lazy"}
           decoding="async"
           draggable="false"
-          onError={() => setBad(true)}
+          style={pos ? { objectPosition: pos } : undefined}
+          onError={() => {
+            console.warn("Image failed:", src);
+            setBad(true);
+          }}
         />
       )}
     </div>
@@ -1736,7 +1746,7 @@ export default function LandingPage() {
                     aria-label={`View ${m.name}, ${m.role}`}
                     onClick={(e) => openTeamLb(k, e.currentTarget.closest(".tm-card"))}
                   >
-                    <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} eager />
+                    <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} eager pos={m.pos} />
                   </button>
                 </div>
                 <h3 className="tm-name">{m.name}</h3>
