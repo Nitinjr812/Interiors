@@ -6,6 +6,10 @@ import gsap from "gsap";
 import { useNavigate } from "react-router-dom";
 import { Observer } from "gsap/Observer";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import suraj from "../assets/suraj.jpeg";
+import nitin from "../assets/nitin ji.jpeg"
+import piyush from "../assets/piyush.jpeg";
+import shubham from "../assets/shubham.jpeg";
 
 gsap.registerPlugin(Observer, ScrollTrigger);
 
@@ -205,7 +209,7 @@ const TEAM = [
     name: "Suraj Asrani",
     role: "Founder",
     bio: "Oversees the company's overall vision and direction, and holds final responsibility for its growth strategy and major decisions.",
-    img: "src/assets/suraj.jpeg",
+    img: suraj,
   },
   {
     name: "Manish Asrani",
@@ -223,19 +227,19 @@ const TEAM = [
     name: "Nitin Kumar",
     role: "Digital Head",
     bio: "Heads the company's digital department — social media, digital marketing, online presence, campaigns, content coordination, leads and digital growth.",
-    img: "src/assets/nitin ji.jpeg",
+    img: nitin,
   },
   {
     name: "Piyush",
     role: "Interior Designer",
     bio: "Handles interior design, space planning and design concepts, coordinating designs and execution around each client's requirements.",
-    img: "src/assets/piyush.jpeg",
+    img: piyush,
   },
   {
     name: "Shubham Saini",
     role: "Civil Engineer",
     bio: "Oversees civil work and site-related technical activities, monitoring site measurements, material and work coordination, and construction quality and progress.",
-    img: "src/assets/shubham.jpeg",
+    img: shubham,
   },
 ];
 
@@ -1198,7 +1202,8 @@ export default function LandingPage() {
   }, [teamOpen]);
 
   useEffect(() => {
-    const urls = [IMG.hero, ...IMG.about, IMG.servicesBg, ...IMG.services, ...IMG.journal];
+    const urls = [IMG.hero, ...IMG.about, IMG.servicesBg, ...IMG.services, ...IMG.journal, ...TEAM.map((t) => t.img),];
+
     const run = () =>
       urls.forEach((u) => {
         const im = new Image();
@@ -1730,7 +1735,7 @@ export default function LandingPage() {
                     aria-label={`View ${m.name}, ${m.role}`}
                     onClick={(e) => openTeamLb(k, e.currentTarget.closest(".tm-card"))}
                   >
-                    <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} />
+                    <Img className="tm-img" src={m.img} alt={m.name} tone={k + 1} eager />
                   </button>
                 </div>
                 <h3 className="tm-name">{m.name}</h3>
