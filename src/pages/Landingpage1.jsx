@@ -227,7 +227,7 @@ const TEAM = [
     name: "Ghanshyam Asrani",
     role: "CEO",
     bio: "Leads the company's day-to-day operations, coordinating every department and ensuring the Founder and Co-Founder's strategy is carried through by the team.",
-    img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=faces&w=800&h=1000&q=80",
+    img:  ghanshyam,
   },
   {
     name: "Nitin Kumar",
